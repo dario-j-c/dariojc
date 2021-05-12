@@ -1,0 +1,185 @@
+---
+title: A Dip into Weather
+author: ''
+date: '2021-05-10'
+slug: intro-to-weather-data
+categories: ["R", "Barbados"]
+tags: ["Weather", "Solar"]
+subtitle: ''
+summary: ''
+authors: []
+lastmod: '2021-05-11 12:25:38 -04'
+featured: no
+image:
+  caption: 'Image credit: [**Unsplash**](https://unsplash.com/photos/G8TYda6HWU8)'
+  focal_point: ''
+  preview_only: no
+projects: []
+---
+
+<script src="{{< blogdown/postref >}}index_files/header-attrs/header-attrs.js"></script>
+
+
+<div id="the-intro" class="section level2">
+<h2>The Intro</h2>
+<p>I hold a vested interest in Barbados weather. This isn’t just based on the ash fall we had received recently, but more due to working in the solar industry as an energy analyst.</p>
+<p>I recently noticed on our <a href="https://www.barbadosweather.org/">meteorological services website</a> a new section labelled Grafana which I naturally clicked. It led to me a dashboard that honestly blew me away. If I’m being completely honest, it’s not exactly what I expect from our government websites.</p>
+<p>After some digging I came to the following conclusions:</p>
+<ul>
+<li>This is a project powered by the <a href="https://www.icdp.ucar.edu/core-programs/3dpaws/">3D-PAWS</a> (3D-Printed Automatic Weather Station) initiative</li>
+<li>Barbados has at least <a href="http://3d-barbados.chordsrt.com/instruments/1">one</a> of the physical weather stations, but has integrated multiple preexisting stations pushing data to the dashboard</li>
+<li>The most important thing in my opinion; you can freely download data from this dashboard</li>
+</ul>
+<p>There’s definitely interesting things you can find out about this project, for example these stations apparently use a raspberry pi for the brains. The project also 3D prints all the housings, connectors, and wire harnesses for the weather station and seems to have plans on making the designs to do so open source. I’m not sure how far they’ve gotten with it, but that’s pretty cool.</p>
+<p>There’s a lot to dig into, but what I want to touch on here and now is the data itself I have access to.</p>
+</div>
+<div id="the-data" class="section level2">
+<h2>The Data</h2>
+<p>The dashboard allows us to download data from their available stations. What we’ll be doing is downloading their irradiance information.</p>
+<p>Now this setup supposedly has multiple <a href="https://earthcubeprojects-chords.github.io/chords-docs/usingchords/#retrieving-data">ways</a> to download data, but I seem to be currently limited to the old fashioned download from dashboard, so that’s exactly what I did.</p>
+<p>I’ve manually downloaded the irradiance for each day going back a couple of days. The code will simply be made to handle either one or multiple files.</p>
+<div id="the-code" class="section level3">
+<h3>The Code</h3>
+<p>We’ll start by just loading our libraries.</p>
+<pre class="r"><code>library(tidyverse)</code></pre>
+<div id="the-variables" class="section level4">
+<h4>The Variables</h4>
+<p>These are the variables which will select the folder and files I wish to look at. In this way it should be easy to see I can easily change the code to red multiple file types, or variable with litlle hassle.</p>
+<pre class="r"><code>  file_type &lt;- &quot;csv&quot;
+  radiation_folder &lt;- &quot;radiation&quot;
+  radiation_data &lt;- &quot;grafana&quot;</code></pre>
+<pre class="r"><code># Get possible files
+files &lt;- list.files(full.names = TRUE,
+                    recursive = TRUE,
+                    include.dirs = TRUE)
+
+# Select Desired folder
+used_file_radiation &lt;- files[str_detect(files, radiation_folder)]
+# Select Desired file
+used_file_radiation &lt;- files[str_detect(files, radiation_data)]
+# Keep only the files which end with the given pattern
+used_file_radiation &lt;- used_file_radiation[str_detect(string = used_file_radiation,
+                                                      pattern = paste0(&quot;(&quot;,file_type,&quot;)$&quot;))]
+
+# Download File(s) &amp; transform
+if(length(used_file_radiation) == 1){
+  
+  
+  radiation_raw &lt;- read_delim(used_file_radiation,
+                              col_types = cols(Time = col_character(),
+                                               Value = col_double()),
+                              delim = &quot;;&quot;,
+                              na = &quot;null&quot;) 
+  
+} else {
+  
+  radiation_raw &lt;- used_file_radiation %&gt;%
+    map_df(~read_delim(.,
+                       col_types = cols(Time = col_character(),
+                                        Value = col_double()),
+                       delim = &quot;;&quot;,
+                       na = &quot;null&quot;)
+    )
+  
+} 
+
+radiation_raw &lt;- radiation_raw %&gt;%
+  distinct() %&gt;%
+  # Split Datetime into Date and Time
+  separate(col = Time,
+           into = c(&quot;Date&quot;, &quot;Time&quot;),
+           sep = &quot;T&quot;) %&gt;%
+  # Discard Time Zone as it&#39;s not needed
+  separate(col = Time,
+           into = c(&quot;Time&quot;, NA),
+           sep = &quot;-&quot;) %&gt;%
+  # Convert date and time to correct format
+  mutate(Date = lubridate::ymd(Date),
+         Time =  hms::as_hms(Time),
+         # Add back in Date - Time column in case it&#39;s useful
+         Date_Time = lubridate::ymd_hms(paste0(Date,&quot;T&quot;,Time)),
+         Month = lubridate::month(Date, label = TRUE)
+  ) %&gt;%
+  select(Series, Month, Date_Time, everything()) %&gt;%
+  arrange(Date_Time)</code></pre>
+</div>
+<div id="the-plot" class="section level4">
+<h4>The Plot</h4>
+<p>Just to see that we’ve downloaded what we wanted, we can create a quick plot.</p>
+<pre class="r"><code>radiation_raw %&gt;%
+  filter(!is.na(Value)) %&gt;%
+  ggplot(aes( x = Date_Time, y = Value)) +
+  geom_line(aes(colour = Series)) +
+  facet_grid(Series~.,
+             scales = &quot;free_y&quot;) +
+  labs(title = &#39;The Daily Irradiance&#39;,
+       x = &#39;Time&#39;,
+       y = &#39;Downwelling Irradiance (W/m^2)&#39;) +
+  scale_y_continuous(labels = scales::comma) +
+  theme(legend.position = &quot;none&quot;)</code></pre>
+<p><img src="{{< blogdown/postref >}}index_files/figure-html/Plot%20Raw%20Data-1.png" width="960" /></p>
+<p>Well it does get what we want, but it looks a bit chaotic. Let’s instead plot the daily average for each month and see if that makes it easier to digest.</p>
+<pre class="r"><code>radiation_raw %&gt;%
+  filter(!is.na(Value)) %&gt;%
+  group_by(Month, Time, Series) %&gt;%
+  summarise(Radiation_mean = mean(Value),
+            Radiation_sd = sd(Value)) %&gt;%
+  ungroup() %&gt;%
+  ggplot(aes(x = Time, y = Radiation_mean)) +
+  geom_line(aes(colour = Series)) +
+  geom_errorbar(aes(ymin = Radiation_mean - Radiation_sd,
+                    ymax = Radiation_mean + Radiation_sd),
+                width = 0.05,
+                alpha = 0.3) +
+  facet_grid(Series ~ Month,
+             scales = &quot;free_y&quot;) +
+  labs(title = &#39;The Average Daily Irradiance&#39;,
+       x = &#39;Time&#39;,
+       y = &#39;Downwelling Irradiance (W/m^2)&#39;,
+       subtitle = &#39;The mean daily irradiance per month&#39;,
+       caption = &#39;includes standard deviation for each point&#39;) +
+  scale_y_continuous(labels = scales::comma) +
+  theme(axis.text.x = element_text(angle = 90),
+        legend.position = &quot;none&quot;)  </code></pre>
+<pre><code>## `summarise()` has grouped output by &#39;Month&#39;, &#39;Time&#39;. You can override using the `.groups` argument.</code></pre>
+<p><img src="{{< blogdown/postref >}}index_files/figure-html/Plot%20Summarised%20Data-1.png" width="960" /></p>
+<p>Hopefully I’ve shown how easy it is to use r to transform our data and visualise it.</p>
+<p>It wouldn’t take much for me to create a template or a parametrised file to easily change inputs.</p>
+<p>I also could easily feed this data into a solar model and use it to check for performance discrepancies due to weather.</p>
+<p>I personally used Excel for all of this work before, and to be frank I can do it easily in that tool (I’ll never betray Excel 😀), but my experience with Excel and r are vastly different. I’ve only truly started using r recently while I’ve used Excel from university and straight through my entire career.</p>
+<p>This should hopefully hint at how useful r can be in an energy analyst’s pipeline.</p>
+<pre class="r"><code>sessionInfo() %&gt;%
+  print(., locale = FALSE)</code></pre>
+<pre><code>## R version 4.0.5 (2021-03-31)
+## Platform: x86_64-w64-mingw32/x64 (64-bit)
+## Running under: Windows 10 x64 (build 19042)
+## 
+## Matrix products: default
+## 
+## attached base packages:
+## [1] stats     graphics  grDevices utils     datasets  methods   base     
+## 
+## other attached packages:
+## [1] forcats_0.5.1   stringr_1.4.0   dplyr_1.0.6     purrr_0.3.4    
+## [5] readr_1.4.0     tidyr_1.1.3     tibble_3.1.1    ggplot2_3.3.3  
+## [9] tidyverse_1.3.1
+## 
+## loaded via a namespace (and not attached):
+##  [1] tidyselect_1.1.1  xfun_0.22         bslib_0.2.4       haven_2.4.1      
+##  [5] colorspace_2.0-1  vctrs_0.3.8       generics_0.1.0    htmltools_0.5.1.1
+##  [9] yaml_2.2.1        utf8_1.2.1        rlang_0.4.11      jquerylib_0.1.4  
+## [13] pillar_1.6.0      withr_2.4.2       glue_1.4.2        DBI_1.1.1        
+## [17] dbplyr_2.1.1      modelr_0.1.8      readxl_1.3.1      lifecycle_1.0.0  
+## [21] munsell_0.5.0     blogdown_1.3.1    gtable_0.3.0      cellranger_1.1.0 
+## [25] rvest_1.0.0       evaluate_0.14     labeling_0.4.2    knitr_1.33       
+## [29] fansi_0.4.2       highr_0.9         broom_0.7.6       Rcpp_1.0.6       
+## [33] backports_1.2.1   scales_1.1.1      jsonlite_1.7.2    farver_2.1.0     
+## [37] fs_1.5.0          hms_1.0.0         digest_0.6.27     stringi_1.6.1    
+## [41] bookdown_0.22     grid_4.0.5        cli_2.5.0         tools_4.0.5      
+## [45] magrittr_2.0.1    sass_0.3.1        crayon_1.4.1      pkgconfig_2.0.3  
+## [49] ellipsis_0.3.2    xml2_1.3.2        reprex_2.0.0      lubridate_1.7.10 
+## [53] rstudioapi_0.13   assertthat_0.2.1  rmarkdown_2.8     httr_1.4.2       
+## [57] R6_2.5.0          compiler_4.0.5</code></pre>
+</div>
+</div>
+</div>

@@ -1,0 +1,183 @@
+---
+title: A Dip into Weather
+author: ''
+date: '2021-05-10'
+slug: intro-to-weather-data
+categories: ["R", "Barbados"]
+tags: ["Weather", "Solar"]
+subtitle: ''
+summary: ''
+authors: []
+lastmod: '2021-05-11 12:25:38 -04'
+featured: no
+image:
+  caption: 'Image credit: [**Unsplash**](https://unsplash.com/photos/G8TYda6HWU8)'
+  focal_point: ''
+  preview_only: no
+projects: []
+---
+## The Intro
+
+I hold a vested interest in Barbados weather. This isn't just based on the ash fall we had received recently, but more due to working in the solar industry as an energy analyst.
+
+I recently noticed on our [meteorological services website](https://www.barbadosweather.org/) a new section labelled Grafana which I naturally clicked. It led to me a dashboard that honestly blew me away. If I'm being completely honest, it's not exactly what I expect from our government websites.
+
+After some digging I came to the following conclusions:
+
+- This is a project powered by the [3D-PAWS](https://www.icdp.ucar.edu/core-programs/3dpaws/) (3D-Printed Automatic Weather Station) initiative
+- Barbados has at least [one](http://3d-barbados.chordsrt.com/instruments/1) of the physical weather stations, but has integrated multiple preexisting stations pushing data to the dashboard
+- The most important thing in my opinion; you can freely download data from this dashboard
+
+There's definitely interesting things you can find out about this project, for example these stations apparently use a raspberry pi for the brains. The project also  3D prints all the housings, connectors, and wire harnesses for the weather station and seems to have plans on making the designs to do so open source. I'm not sure how far they've gotten with it, but that's pretty cool.
+
+There's a lot to dig into, but what I want to touch on here and now is the data itself I have access to.
+
+## The Data
+
+The dashboard allows us to download data from their available stations. What we'll be doing is downloading their irradiance information.
+
+Now this setup supposedly has multiple  [ways](https://earthcubeprojects-chords.github.io/chords-docs/usingchords/#retrieving-data) to download data, but I seem to be currently limited to the old fashioned download from dashboard, so that's exactly what I did.
+
+I've manually downloaded the irradiance for each day going back a couple of days. The code will simply be made to handle either one or multiple files.
+
+### The Code
+
+We'll start by just loading our libraries.
+```{r Load Libraries, message = FALSE}
+library(tidyverse)
+```
+
+
+#### The Variables
+
+These are the variables which will select the folder and files I wish to look at. In this way it should be easy to see I can easily change the code to red multiple file types, or variable with litlle hassle.
+
+```{r Set Variables}
+  file_type <- "csv"
+  radiation_folder <- "radiation"
+  radiation_data <- "grafana"
+```
+
+
+```{r Download Files}
+
+# Get possible files
+files <- list.files(full.names = TRUE,
+                    recursive = TRUE,
+                    include.dirs = TRUE)
+
+# Select Desired folder
+used_file_radiation <- files[str_detect(files, radiation_folder)]
+# Select Desired file
+used_file_radiation <- files[str_detect(files, radiation_data)]
+# Keep only the files which end with the given pattern
+used_file_radiation <- used_file_radiation[str_detect(string = used_file_radiation,
+                                                      pattern = paste0("(",file_type,")$"))]
+
+# Download File(s) & transform
+if(length(used_file_radiation) == 1){
+  
+  
+  radiation_raw <- read_delim(used_file_radiation,
+                              col_types = cols(Time = col_character(),
+                                               Value = col_double()),
+                              delim = ";",
+                              na = "null") 
+  
+} else {
+  
+  radiation_raw <- used_file_radiation %>%
+    map_df(~read_delim(.,
+                       col_types = cols(Time = col_character(),
+                                        Value = col_double()),
+                       delim = ";",
+                       na = "null")
+    )
+  
+} 
+
+radiation_raw <- radiation_raw %>%
+  distinct() %>%
+  # Split Datetime into Date and Time
+  separate(col = Time,
+           into = c("Date", "Time"),
+           sep = "T") %>%
+  # Discard Time Zone as it's not needed
+  separate(col = Time,
+           into = c("Time", NA),
+           sep = "-") %>%
+  # Convert date and time to correct format
+  mutate(Date = lubridate::ymd(Date),
+         Time =  hms::as_hms(Time),
+         # Add back in Date - Time column in case it's useful
+         Date_Time = lubridate::ymd_hms(paste0(Date,"T",Time)),
+         Month = lubridate::month(Date, label = TRUE)
+  ) %>%
+  select(Series, Month, Date_Time, everything()) %>%
+  arrange(Date_Time)
+
+```
+
+
+#### The Plot
+
+Just to see that we've downloaded what we wanted, we can create a quick plot.
+```{r Plot Raw Data, fig.height = 10, fig.width = 10}
+
+radiation_raw %>%
+  filter(!is.na(Value)) %>%
+  ggplot(aes( x = Date_Time, y = Value)) +
+  geom_line(aes(colour = Series)) +
+  facet_grid(Series~.,
+             scales = "free_y") +
+  labs(title = 'The Daily Irradiance',
+       x = 'Time',
+       y = 'Downwelling Irradiance (W/m^2)') +
+  scale_y_continuous(labels = scales::comma) +
+  theme(legend.position = "none")
+```
+
+Well it does get what we want, but it looks a bit chaotic. Let's instead plot the daily average for each month and see if that makes it easier to digest.
+
+```{r Plot Summarised Data, fig.height = 10, fig.width = 10}
+
+radiation_raw %>%
+  filter(!is.na(Value)) %>%
+  group_by(Month, Time, Series) %>%
+  summarise(Radiation_mean = mean(Value),
+            Radiation_sd = sd(Value)) %>%
+  ungroup() %>%
+  ggplot(aes(x = Time, y = Radiation_mean)) +
+  geom_line(aes(colour = Series)) +
+  geom_errorbar(aes(ymin = Radiation_mean - Radiation_sd,
+                    ymax = Radiation_mean + Radiation_sd),
+                width = 0.05,
+                alpha = 0.3) +
+  facet_grid(Series ~ Month,
+             scales = "free_y") +
+  labs(title = 'The Average Daily Irradiance',
+       x = 'Time',
+       y = 'Downwelling Irradiance (W/m^2)',
+       subtitle = 'The mean daily irradiance per month',
+       caption = 'includes standard deviation for each point') +
+  scale_y_continuous(labels = scales::comma) +
+  theme(axis.text.x = element_text(angle = 90),
+        legend.position = "none")  
+
+```
+
+Hopefully I've shown how easy it is to use r to transform our data and visualise it.
+
+It wouldn't take much for me to create a template or a parametrised file to easily change inputs.
+
+I also could easily feed this data into a solar model and use it to check for performance discrepancies due to weather.
+
+
+I personally used Excel for all of this work before, and to be frank I can do it easily in that tool (I'll never betray Excel 😀), but my experience with Excel and r are vastly different. I've only truly started using r recently while I've used Excel from university and straight through my entire career.
+
+This should hopefully hint at how useful r can be in an energy analyst's pipeline.
+
+```{r Session Info}
+sessionInfo() %>%
+  print(., locale = FALSE)
+```
