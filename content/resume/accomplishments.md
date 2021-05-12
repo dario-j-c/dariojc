@@ -29,7 +29,7 @@ item:
   description: Designed to prepare for beginning assembling and leading a data science enterprise.
   organization: Coursera
   organization_url: https://www.coursera.org
-  title: Executive Data Science
+  title: Executive Data Science Specialization
   url: ""
 - certificate_url: https://www.credly.com/badges/937f88f5-5f34-4671-87d4-ace5eae88015/public_url
   date_end: ""
@@ -39,6 +39,13 @@ item:
   organization_url: https://www.coursera.org
   title: Google Data Analytics
   url: ""
+- certificate_url: https://coursera.org/share/9b093f3597674feba832a31a057bed73
+  date_end: ""
+  date_start: "2021-05-12"
+  description: Designed to cover the concepts and tools for an entire data science pipeline.
+  organization: Coursera
+  organization_url: https://www.coursera.org
+  title: Data Science Specialization
 
 design:
   columns: '2' 
