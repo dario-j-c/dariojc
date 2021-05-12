@@ -37,7 +37,7 @@ item:
   description: Designed to prepare for introductory-level roles in Data Analytics
   organization: Coursera
   organization_url: https://www.coursera.org
-  title: Google Data Analytics
+  title: Google Data Analytics Specialization
   url: ""
 - certificate_url: https://coursera.org/share/9b093f3597674feba832a31a057bed73
   date_end: ""
