@@ -50,7 +50,7 @@ library(tidyverse)
 
 #### The Variables
 
-These are the variables which will select the folder and files I wish to look at. In this way it should be easy to see I can easily change the code to red multiple file types, or variable with litlle hassle.
+These are the variables which will select the folder and files I wish to look at. In this way it should be easy to see I can easily change the code to red multiple file types, or variable with little hassle.
 
 ```{r Set Variables}
   file_type <- "csv"
