@@ -19,6 +19,7 @@ tags:
 - SPARQL
 - Scientists
 - Shiny
+- r
 title: Scientists' Birthplaces Worldwide
 url_code: "https://dario-j-c.shinyapps.io/scientists_location/"
 url_pdf: ""
