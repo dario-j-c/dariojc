@@ -1,5 +1,5 @@
 ---
-date: "2021-04-25"
+date: "2021-05-06"
 external_link: ""
 image:
   caption: 'Image credit: [**Unsplash**](https://unsplash.com/photos/S8MSj5VzHxQ)'
@@ -16,7 +16,7 @@ links:
 # slides: example
 summary: Predicting words using n-grams
 tags:
-- word prediction
+- Word Prediction
 - NLP
 - Shiny
 - r
