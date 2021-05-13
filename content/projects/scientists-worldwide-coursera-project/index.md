@@ -2,7 +2,7 @@
 date: "2021-04-25"
 external_link: ""
 image:
-  caption:
+  caption: 'Image credit: [**Unsplash**](https://unsplash.com/photos/PP5nO5gcLdA)'
   focal_point: Smart
 links:
 - icon: archive
