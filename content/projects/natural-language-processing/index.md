@@ -28,7 +28,7 @@ url_video: ""
 ---
 
 
-This project uses n-grams generated from provided text to generate a word. The text was sourced by SwiftKey and was taken from blogs, news sites, and twitter.
+This project uses n-grams generated from provided text to predict the next word of a given phrase. The text was sourced by SwiftKey and was taken from blogs, news sites, and twitter.
 
 I chose to use the modified Kneser-Ney algorithm for interpolation which took some time to implement, but found creating a model which fit within the size limitations of the app to be an unexpected road bump.
 
