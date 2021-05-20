@@ -1,14 +1,14 @@
 ---
 title: Harvesting Real Estate
 author: ''
-date: '2021-05-12'
+date: '2021-05-20'
 slug: rvesting-real-estate
 categories: ["R", "Barbados"]
 tags: ["Real Estate", "rvest", "web scraping"]
 subtitle: ''
 summary: ''
 authors: []
-lastmod: '2021-05-12 23:12:40 -04'
+lastmod: '2021-05-20 11:00:10 -04'
 featured: no
 image:
   caption: 'Image credit: [**Unsplash**](https://unsplash.com/photos/f9qZuKoZYoY)'
@@ -16,154 +16,828 @@ image:
   preview_only: no
 projects: []
 ---
+
 ## The Intro
 
-I find one of the strange road bumps you don't expect in practicing data analytics is finding the data in the first place. Yes the world is currently overflowing with with information, 
+I find one of the strange road bumps you don't expect in practicing data analytics is finding the data in the first place.
+Yes the world is currently overflowing with information, for instance the amount of data worldwide was estimated to be [44 zettabytes](https://seedscientific.com/how-much-data-is-created-every-day/#:~:text=Every%20day%2C%20we%20create%20roughly,rate%20will%20become%20even%20greater.) at the beginning of 2020, and we're not slowing down.
+Now zetta is the prefix for 1 sextillion, or 21 zeroes behind the 1, that's only [1 - 2 zeroes](http://www.esa.int/Science_Exploration/Space_Science/Herschel/How_many_stars_are_there_in_the_Universe) lower than the estimated number of stars in the universe.
+
+Yet even with all of this data, the question remains, how pertinent is any of this information to me.
+I'm in Barbados, and the things I'm interested in definitely involve where I live, but looking for first hand data online for Barbados doesn't return a great deal of results.
+It feels like an information desert, yet just like an oasis, the data can still be found.
+
+One way is through web scraping, what this entails is collecting information, manually or otherwise, from a website or websites to be used.
+
+## The Preliminaries
+
+Before we do any scraping, we need to do so ethically.
+Many websites have robots.txt which informs us on what scraping behaviour is allowed for the site.
+In our case, it would also be useful to read the terms and agreements to ensure web scraping is allowed.
+I'm included this since I found some sites whose robots.txt allows scraping but terms and conditions read in the contrary.
+
+They are r packages (e.g. **robotstxt**) which allow you to check a site's robots.txt in a r session, or websites (e.g. [this one](https://www.caniscrape.com/)) which can be used to check as well.
+I chose to use the website in this case.
+
+I recommend this website also for reading more about web scraping and robots.txt.
+
+The site I found for this example is:
+
+-   Barbadian
+-   Allows for scraping in its robots.txt
+-   Its terms and conditions does not disallow scraping.
+
+We'll be moving forward with this site, but I wish to respect their privacy and will neither be indicating the name of the site nor showing any particular set of data which may be used to identify it, or any particular party or individual on their website.
 
 ## The Data
 
-The dashboard allows us to download data from their available stations. What we'll be doing is downloading their irradiance information.
-
-Now this setup supposedly has multiple  [ways](https://earthcubeprojects-chords.github.io/chords-docs/usingchords/#retrieving-data) to download data, but I seem to be currently limited to the old fashioned download from dashboard, so that's exactly what I did.
-
-I've manually downloaded the irradiance for each day going back a couple of days. The code will simply be made to handle either one or multiple files.
+The data we'll be scraping is real estate information in Barbados.
 
 ### The Code
 
 We'll start by just loading our libraries.
+
+The main library of interest today is rvest which will be doing the brunt of the work for collecting information.
+
 ```{r Load Libraries, message = FALSE}
 library(tidyverse)
-```
+library(rvest)
+library(leaflet)
 
+```
 
 #### The Variables
 
-These are the variables which will select the folder and files I wish to look at. In this way it should be easy to see I can easily change the code to red multiple file types, or variable with litlle hassle.
+We'll be using a particular set of variables which I won't be displaying here, sorry if that makes the code more difficult to understand.
 
-```{r Set Variables}
-  file_type <- "csv"
-  radiation_folder <- "radiation"
-  radiation_data <- "grafana"
+```{r Details to be Hidden}
+# Please respect the privacy of the website
+# 
+# This function calls identifiable variable of the website
+
+if(!exists("hid_var", mode = "function")) {
+  source("hid_var.R") 
+}
+hid_var()
 ```
 
+Web scraping with rvest involves:
 
-```{r Download Files}
+1.  reading the entire page as html with `read_html`
 
-# Get possible files
-files <- list.files(full.names = TRUE,
-                    recursive = TRUE,
-                    include.dirs = TRUE)
+-   If you view the page's source, you will see the html code which this function will be reading. For Chrome & Edge you can currently do this by right clicking and selecting "view page source".
 
-# Select Desired folder
-used_file_radiation <- files[str_detect(files, radiation_folder)]
-# Select Desired file
-used_file_radiation <- files[str_detect(files, radiation_data)]
-# Keep only the files which end with the given pattern
-used_file_radiation <- used_file_radiation[str_detect(string = used_file_radiation,
-                                                      pattern = paste0("(",file_type,")$"))]
+2.  choosing the html tags & elements of interest with `html_elements`
 
-# Download File(s) & transform
-if(length(used_file_radiation) == 1){
+-   Within the html code are elements, usually denoted with some start and end tags `<...>` ... `</...>`.
+    `html_elements` allows us to select certain tags to collect their contents (the element) using CSS selectors, or XPath expressions.
+
+    For my purpose, I used [selector gadget](https://rvest.tidyverse.org/articles/selectorgadget.html) to find the CSS selector I was interested in.
+
+3.  choosing additional information of the html tags / elements in the form of attributes with `html_attr`
+
+-   The attribute is found in the start tag and can be used to isolate additional details. In the example, `<a href="https://example.com">An Example Site</a>`. The tag is `<a>` which has the attribute `href`.
+
+They are other functions, but we'll only be using these ones.
+
+We will write our code to read multiple pages which will be implemented using a function to read each page.
+
+We'll open a connection to each page, read each page, and then close our connection to it on each iteration to ensure this works without hiccups.
+
+We then combine the results from each page using `map_dfr` which will create one combined dataframe by appending each page's results by row.
+
+```{r Download the Website Data, warning = FALSE}
+
+# Get the website Data
+
+
+# Download property to find pages to scrape
+temp_property_id <- map_dfr(1:row_limit, function(i) {
+  
+  # simple and effective progress indicator
+  # cat(".")
+  
+  # download the page of interest
+  pg <- paste0(page_begin,
+               i,
+               page_end) %>%
+    url() %>%
+    read_html()
+  
+  # close connection to the page of interest
+  paste0(page_begin,
+         i,
+         page_end) %>%
+    url() %>%
+    close()
+  
+  # Check lengths of the three points of interest
+  length_1 <- length(i)
+  
+  length_2 <- pg %>%
+    html_elements(temp_1) %>%
+    html_text() %>%
+    length()
+  
+  length_3 <- pg %>%
+    html_elements("a") %>%
+    html_attr("onclick") %>%
+    as_tibble() %>%
+    filter(str_detect(string = value,
+                      pattern = "LoadMap")) %>%
+    as_vector() %>%
+    length()
+  
+  # Select the max length between the three points of interest
+  max_length <- max(c(length_1, length_2, length_3))
+  
+  # Place points of interest in a dataframe, and repeat a dummy value until they are the same length as the max length to avoid mismatched columns
+  data.frame(
+    web_page = c(i,
+                 rep(i, max_length - length_1)),
+    property_id = c(
+      pg %>%
+        html_elements(temp_1) %>%
+        html_attr("onclick") %>%
+        parse_number(),
+      rep(i, max_length - length_2)),
+    location = c(
+      pg %>%
+        html_elements("a") %>%
+        html_attr("onclick") %>%
+        as_tibble() %>%
+        filter(str_detect(string = value,
+                          pattern = "LoadMap")) %>%
+        as_vector(),
+      rep(i, max_length - length_3)),
+    stringsAsFactors=FALSE)
+})
+
+# Display five random rows in generated dataframe
+sample(x = 1:nrow(temp_property_id),
+       size = 5,
+       replace = FALSE) %>%
+  temp_property_id[.,] %>%
+  #obscure variable to use for identification
+  mutate(property_id = "00000",
+         location = paste( head(strsplit(location, '')[[1]], 14), collapse = "")
+         ) %>%
+  as_tibble() %>%
+  gt::gt() %>% 
+  gt::tab_header(
+    title = "Sample Values",
+    subtitle = "Sample taken from initial scraped dataset"
+  )
+
+```
+
+We'll clean this dataframe by isolating the latitude and longitude where possible, and doing a quick pass to remove coordinates which don't fall in a certain distance around Barbados.
+
+```{r Clean for coordinates}
+
+temp_property_id <- temp_property_id %>%
+  separate(col = location,
+           into = c("latitude", "longitude", NA),
+           sep = ",") %>%
+  # Simple sanity check for the values for latitude & longitude
+  mutate(latitude = parse_number(latitude),
+         latitude = if_else(latitude > 13.044347 & latitude < 13.335841,
+                            latitude,
+                            NA_real_),
+         longitude = parse_number(longitude),
+         longitude = if_else(longitude > -59.647765 & longitude < -59.410176,
+                             longitude,
+                             NA_real_))
+
+# Display five random rows in generated dataframe
+sample(x = 1:nrow(temp_property_id),
+       size = 5,
+       replace = FALSE) %>%
+  temp_property_id[.,] %>%
+  #obscure variable to use for identification
+  mutate(property_id = "00000",
+         latitude = round(latitude, 2),
+         longitude = round(longitude, 2)
+         ) %>%
+  as_tibble() %>%
+  gt::gt() %>% 
+  gt::tab_header(
+    title = "Sample Values",
+    subtitle = "Sample taken from initial scraped dataset"
+  )
+
+```
+
+We will use the property id to read each of the pages we're interested in.
+On each page, our points of interest do not always appear, and when they do appear, they don't always appear in the same order.
+
+We will accommodate for this by ensuring our code will insert a 'NA' when the point of interest isn't found and reorganising the collected data to properly group the information.
+
+The only new function added is the use of `html_text` which allows us to take the text from an element.
+
+```{r Download Multiple Pages}
+
+if (!any( str_detect(list.files(full.names = TRUE,
+                                recursive = TRUE,
+                                include.dirs = TRUE),
+                     "realestate.RData")
+)
+){
+  
+  raw_length <- nrow(temp_property_id)
+  
+  # Scrape the relevant details
+  raw_data <- map_dfr(1:raw_length, function(i) {
+    # simple but effective progress indicator
+    cat(".")
+    
+    pg <- read_html(url(paste0(raw_page_begin,
+                               temp_property_id$property_id[i],
+                               raw_page_end)))
+    
+    close(url(paste0(raw_page_begin,
+                     temp_property_id$property_id[i],
+                     raw_page_end)))
+    
+    # the ifelse checks if the desired value exists, if yes, take the value, if no insert NA
+    data.frame(
+      row_1 = ifelse(
+        length(html_text(html_elements(pg, type_1))) == 0,
+        NA_character_,
+        html_text(html_elements(pg, type_1))
+      ),
+      row_2 = ifelse(
+        length(html_text(html_elements(pg, type_2))) == 0,
+        NA_character_,
+        html_text(html_elements(pg, type_2))
+      ),
+      row_3 = ifelse(
+        length(html_text(html_elements(pg, type_3))) == 0,
+        NA_character_,
+        html_text(html_elements(pg, type_3))
+      ),
+      row_4 = ifelse(
+        length(html_text(html_elements(pg, type_4))) == 0,
+        NA_character_,
+        html_text(html_elements(pg, type_4))
+      ),
+      row_5 = ifelse(
+        length(html_text(html_elements(pg, type_5))) == 0,
+        NA_character_,
+        html_text(html_elements(pg, type_5))
+      ),
+      row_6 = ifelse(
+        length(html_text(html_elements(pg, type_6))) == 0,
+        NA_character_,
+        html_text(html_elements(pg, type_6))
+      ),
+      row_7 = ifelse(
+        length(html_text(html_elements(pg, type_7))) == 0,
+        NA_character_,
+        html_text(html_elements(pg, type_7))
+      ),
+      row_0 = ifelse(
+        length(html_text(html_elements(pg,type_8))) == 0,
+        NA_character_,
+        html_text(html_elements(pg,type_8))
+      ),
+      title_1 = ifelse(
+        length(html_text(html_elements(pg,type_9))) == 0,
+        NA_character_,
+        html_text(html_elements(pg,type_9))
+      ),
+      title_2 = ifelse(
+        length(html_text(html_elements(pg,type_10))) == 0,
+        NA_character_,
+        html_text(html_elements(pg,type_10))
+      ),
+      title_3 = ifelse(
+        length(html_text(html_elements(pg,type_11))) == 0,
+        NA_character_,
+        html_text(html_elements(pg,type_11))
+      ),
+      title_4 = ifelse(
+        length(html_text(html_elements(pg,type_12))) == 0,
+        NA_character_,
+        html_text(html_elements(pg,type_12))
+      ),
+      title_5 = ifelse(
+        length(html_text(html_elements(pg,type_13))) == 0,
+        NA_character_,
+        html_text(html_elements(pg,type_13))
+      ),
+      title_6 = ifelse(
+        length(html_text(html_elements(pg,type_14))) == 0,
+        NA_character_,
+        html_text(html_elements(pg,type_14))
+      ),
+      title_7 = ifelse(
+        length(html_text(html_elements(pg,type_15))) == 0,
+        NA_character_,
+        html_text(html_elements(pg,type_15))
+      ),
+      title_0 = ifelse(
+        length(html_text(html_elements(pg,type_16))) == 0,
+        NA_character_,
+        html_text(html_elements(pg,type_16))
+      ),
+      description = ifelse(
+        length(html_text(html_elements(pg,type_a))) == 0,
+        NA_character_,
+        html_text(html_elements(pg,type_a))
+      ),
+      realtor = ifelse(
+        length(html_text(html_elements(pg,type_b))) == 0,
+        NA_character_,
+        html_text(html_elements(pg,type_b))
+      ),
+      blurb = ifelse(
+        length(html_text(html_elements(pg,type_17))) == 0,
+        NA_character_,
+        # This uses `paste`, allowing us to combine multiple rows into one string
+        paste(html_text(html_elements(pg,type_17)), collapse = " ")
+      ),
+      # We collected these values earlier, so we won't need to insert NA here
+      latitude = temp_property_id$latitude[i],
+      longitude = temp_property_id$longitude[i],
+      link = paste0(raw_page_begin,
+                    temp_property_id$property_id[i],
+                    raw_page_end),
+      stringsAsFactors=FALSE)
+    
+  })
   
   
-  radiation_raw <- read_delim(used_file_radiation,
-                              col_types = cols(Time = col_character(),
-                                               Value = col_double()),
-                              delim = ";",
-                              na = "null") 
+  # Display five random rows in generated dataframe
+  sample(x = 1:nrow(raw_data),
+         size = 5,
+         replace = FALSE) %>%
+    raw_data[.,] %>%
+  # remove variables which may identify locations
+  select(!(description:link)) %>%
+    as_tibble() %>%
+    gt::gt() %>% 
+  gt::tab_header(
+    title = "Sample Values",
+    subtitle = "Sample taken from scraped dataset"
+  )
   
-} else {
+}
+```
+
+We will clean this dataset by sorting the data into appropriate columns and pull some useful features from the collected unstructured text which we labelled `blurb`.
+
+```{r 1st Pass Clean, warning = FALSE}
+# Clean the Raw Data
+# I currently like using case_when here because it's easy for me to read and I can easily edit as desired.
+# If you use a more efficient method, let me know.
+
+if (!any( str_detect(list.files(full.names = TRUE,
+                                recursive = TRUE,
+                                include.dirs = TRUE),
+                     "realestate.RData")
+)
+){
   
-  radiation_raw <- used_file_radiation %>%
-    map_df(~read_delim(.,
-                       col_types = cols(Time = col_character(),
-                                        Value = col_double()),
-                       delim = ";",
-                       na = "null")
+  data <- raw_data %>%
+    mutate(
+      # Collect the price into one column
+      price = case_when(
+        title_0 == "Sale Price" ~ row_0,
+        title_1 == "Sale Price" ~ row_1,
+        title_2 == "Sale Price" ~ row_2,
+        title_3 == "Sale Price" ~ row_3,
+        title_4 == "Sale Price" ~ row_4,
+        title_5 == "Sale Price" ~ row_5,
+        title_6 == "Sale Price" ~ row_6,
+        title_7 == "Sale Price" ~ row_7,
+        TRUE                    ~ NA_character_
+      ),
+      # Collect the property status into one column
+      property_status = case_when(
+        title_0 == "Property Status" ~ row_0,
+        title_1 == "Property Status" ~ row_1,
+        title_2 == "Property Status" ~ row_2,
+        title_3 == "Property Status" ~ row_3,
+        title_4 == "Property Status" ~ row_4,
+        title_5 == "Property Status" ~ row_5,
+        title_6 == "Property Status" ~ row_6,
+        title_7 == "Property Status" ~ row_7,
+        TRUE                         ~ NA_character_
+      ),
+      # Collect the property type into one column
+      property_type = case_when(
+        title_0 == "Property Type" ~ row_0,
+        title_1 == "Property Type" ~ row_1,
+        title_2 == "Property Type" ~ row_2,
+        title_3 == "Property Type" ~ row_3,
+        title_4 == "Property Type" ~ row_4,
+        title_5 == "Property Type" ~ row_5,
+        title_6 == "Property Type" ~ row_6,
+        title_7 == "Property Type" ~ row_7,
+        TRUE                       ~ NA_character_
+      ),
+      # Collect the number of bedrooms into one column
+      bedroom_no = case_when(
+        title_0 == "Bedrooms" ~ row_0,
+        title_1 == "Bedrooms" ~ row_1,
+        title_2 == "Bedrooms" ~ row_2,
+        title_3 == "Bedrooms" ~ row_3,
+        title_4 == "Bedrooms" ~ row_4,
+        title_5 == "Bedrooms" ~ row_5,
+        title_6 == "Bedrooms" ~ row_6,
+        title_7 == "Bedrooms" ~ row_7,
+        TRUE                  ~ NA_character_
+      ),
+      # Collect the number of bathrooms into one column
+      bathroom_no = case_when(
+        title_0 == "Bathrooms" ~ row_0,
+        title_1 == "Bathrooms" ~ row_1,
+        title_2 == "Bathrooms" ~ row_2,
+        title_3 == "Bathrooms" ~ row_3,
+        title_4 == "Bathrooms" ~ row_4,
+        title_5 == "Bathrooms" ~ row_5,
+        title_6 == "Bathrooms" ~ row_6,
+        title_7 == "Bathrooms" ~ row_7,
+        TRUE                   ~ NA_character_
+      ),
+      # Collect the year built into one column
+      year_built = case_when(
+        title_0 == "Year Built" ~ row_0,
+        title_1 == "Year Built" ~ row_1,
+        title_2 == "Year Built" ~ row_2,
+        title_3 == "Year Built" ~ row_3,
+        title_4 == "Year Built" ~ row_4,
+        title_5 == "Year Built" ~ row_5,
+        title_6 == "Year Built" ~ row_6,
+        title_7 == "Year Built" ~ row_7,
+        TRUE                    ~ NA_character_
+      ),
+      # Collect the building area into one column
+      bld_area = case_when(
+        title_0 == "Building Area" ~ row_0,
+        title_1 == "Building Area" ~ row_1,
+        title_2 == "Building Area" ~ row_2,
+        title_3 == "Building Area" ~ row_3,
+        title_4 == "Building Area" ~ row_4,
+        title_5 == "Building Area" ~ row_5,
+        title_6 == "Building Area" ~ row_6,
+        title_7 == "Building Area" ~ row_7,
+        TRUE                       ~ NA_character_
+      ),
+      # Collect the property area into one column
+      pty_area = case_when(
+        title_0 == "Property Area" ~ row_0,
+        title_1 == "Property Area" ~ row_1,
+        title_2 == "Property Area" ~ row_2,
+        title_3 == "Property Area" ~ row_3,
+        title_4 == "Property Area" ~ row_4,
+        title_5 == "Property Area" ~ row_5,
+        title_6 == "Property Area" ~ row_6,
+        title_7 == "Property Area" ~ row_7,
+        TRUE                       ~ NA_character_
+      ),
+      # Create feature for beach access
+      beach_access = case_when(
+        str_detect(blurb, regex("Beach", ignore_case = T)) ~ TRUE,
+        TRUE                                               ~ FALSE
+      ),
+      # Create feature for pool access
+      pool_access = case_when(
+        str_detect(blurb, regex("Pool", ignore_case = T)) ~ TRUE,
+        TRUE                                              ~ FALSE
+      ),
+      # Create feature for golf access
+      golf_access = case_when(
+        str_detect(blurb, regex("Golf", ignore_case = T)) ~ TRUE,
+        TRUE                                              ~ FALSE
+      ),
+      # Create feature for furnished building
+      furnished = case_when(
+        str_detect(blurb, regex("Furnish", ignore_case = T)) ~ TRUE,
+        TRUE                                                 ~ FALSE
+      ),
+      # Create feature for currency used
+      currency = case_when(
+        str_detect(price,"(BB)") ~ "BBD",
+        str_detect(price,"(US)") ~ "USD",
+        TRUE ~ NA_character_),
+      # Create feature for rent availability
+      rent_available = case_when(
+        str_detect(price,regex("\\s(rent)|^(rent)|\\s(lease)|^(lease)", ignore_case = T)) ~ TRUE,
+        TRUE ~ FALSE),
+      # Create feature for location by Parish
+      parish = case_when(
+        str_detect(description, "Christ Church") ~ "Christ Church",
+        str_detect(description, "St. Andrew")    ~ "St. Andrew",
+        str_detect(description, "St. George")    ~ "St. George",
+        str_detect(description, "St. James")     ~ "St. James",
+        str_detect(description, "St. John")      ~ "St. John",
+        str_detect(description, "St. Joseph")    ~ "St. Joseph",
+        str_detect(description, "St. Lucy")      ~ "St. Lucy",
+        str_detect(description, "St. Michael")   ~ "St. Michael",
+        str_detect(description, "St. Peter")     ~ "St. Peter",
+        str_detect(description, "St. Philip")    ~ "St. Philip",
+        str_detect(description, "St. Thomas")    ~ "St. Thomas",
+        TRUE                                     ~ NA_character_
+      ),
+      # Parse the values which should be numbers
+      price = parse_number(price),
+      # Convert any number which was found as acres to sq. ft.
+      pty_area = case_when(
+        str_detect(pty_area,
+                   regex("acre",
+                         ignore_case = T)) ~ parse_number(pty_area) * 43560.04,
+        str_detect(blurb,
+                   regex("[:digit:](|\\.[:digit:])\\s+(acre)",
+                         ignore_case = T)) ~  parse_number(
+                           str_extract(blurb,
+                                       regex("[:digit:](|\\.[:digit:])\\s+(acre)",
+                                             ignore_case = T))
+                         ) * 43560.04,
+        TRUE ~ parse_number(pty_area)
+      ),
+      bld_area = parse_number(bld_area),
+      bedroom_no = parse_number(bedroom_no),
+      bathroom_no = parse_number(bathroom_no),
+      year_built = parse_number(year_built),
+      # Create the feature for price per square foot
+      # We make some basic assumptions about what will likely be a price per square foot
+      price_per_sqft = case_when(
+        price < 100 ~ price,
+        price > 100 & price < 5000 ~ NA_real_,
+        price > 5000 & property_type == "Land" & !is.na(pty_area) ~ price / pty_area,
+        price > 5000 & property_type == "Land" & !is.na(bld_area) ~ price / bld_area,
+        price > 5000 & property_type != "Land" & !is.na(bld_area) ~ price / bld_area,
+        price > 5000 & property_type != "Land" & !is.na(pty_area) ~ price / pty_area,
+        TRUE ~ NA_real_
+      ),
+      # Remove any infinity values
+      price_per_sqft = ifelse(is.infinite(price_per_sqft), NA_real_, price_per_sqft)
+    ) %>%
+    select(
+      price,
+      price_per_sqft,
+      currency,
+      property_status,
+      property_type,
+      rent_available,
+      bedroom_no,
+      bathroom_no,
+      beach_access,
+      pool_access,
+      golf_access,
+      furnished,
+      bld_area,
+      pty_area,
+      year_built,
+      realtor,
+      latitude,
+      longitude,
+      parish,
+      description,
+      link
     )
+  data <- na_if(data, "-")
   
-} 
+} else{
+  files <- list.files(full.names = TRUE,
+                      recursive = TRUE,
+                      include.dirs = TRUE)
+  
+  # Select Desired folder
+  used_file <- files[str_detect(files, "realestate.RData")]
+  
+  load(used_file)
+  
+  rm(files,
+     used_file)
+}
 
-radiation_raw <- radiation_raw %>%
-  distinct() %>%
-  # Split Datetime into Date and Time
-  separate(col = Time,
-           into = c("Date", "Time"),
-           sep = "T") %>%
-  # Discard Time Zone as it's not needed
-  separate(col = Time,
-           into = c("Time", NA),
-           sep = "-") %>%
-  # Convert date and time to correct format
-  mutate(Date = lubridate::ymd(Date),
-         Time =  hms::as_hms(Time),
-         # Add back in Date - Time column in case it's useful
-         Date_Time = lubridate::ymd_hms(paste0(Date,"T",Time)),
-         Month = lubridate::month(Date, label = TRUE)
+# Display five random rows in generated dataframe
+sample(x = 1:nrow(data),
+       size = 5,
+       replace = FALSE) %>%
+  data[.,] %>%
+  # remove variables which may identify locations
+  select(!(realtor:link)) %>%
+  as_tibble() %>%
+  gt::gt() %>% 
+  gt::tab_header(
+    title = "Sample Values",
+    subtitle = "Sample taken from cleaned dataset"
   ) %>%
-  select(Series, Month, Date_Time, everything()) %>%
-  arrange(Date_Time)
+  gt::fmt_number(
+    columns = c(price_per_sqft,
+                bedroom_no,
+                bathroom_no,
+                bld_area,
+                pty_area),
+    decimals = 0,
+    suffixing = TRUE
+  ) %>%
+  gt::fmt_currency(
+    columns = price,
+    suffixing = TRUE,
+    currency = "BBD"
+  )
 
 ```
 
+We'll save our dataframe for use at a later date.
 
-#### The Plot
+```{r Save File}
 
-Just to see that we've downloaded what we wanted, we can create a quick plot.
-```{r Plot Raw Data, fig.height = 10, fig.width = 10}
+# Save file
+if (!any( str_detect(list.files(full.names = TRUE,
+                                recursive = TRUE,
+                                include.dirs = TRUE),
+                     "realestate.RData")
+)
+) { save(data, file = "realestate.RData")
+}
 
-radiation_raw %>%
-  filter(!is.na(Value)) %>%
-  ggplot(aes( x = Date_Time, y = Value)) +
-  geom_line(aes(colour = Series)) +
-  facet_grid(Series~.,
-             scales = "free_y") +
-  labs(title = 'The Daily Irradiance',
-       x = 'Time',
-       y = 'Downwelling Irradiance (W/m^2)') +
-  scale_y_continuous(labels = scales::comma) +
-  theme(legend.position = "none")
 ```
 
-Well it does get what we want, but it looks a bit chaotic. Let's instead plot the daily average for each month and see if that makes it easier to digest.
+```{r Remove Uneeded Variables, include = FALSE}
+# Remove unneeded terms in r session
+rm(list = paste0("type_",1:17),
+   site_1_main_url,
+   temp_1,
+   temp_2,
+   temp_3,
+   chck_url_1,
+   raw_data,
+   type_a,
+   type_b,
+   row_limit,
+   page_begin,
+   page_end,
+   raw_length,
+   raw_page_begin,
+   raw_page_end,
+   temp_property_id
+)
 
-```{r Plot Summarised Data, fig.height = 10, fig.width = 10}
+```
 
-radiation_raw %>%
-  filter(!is.na(Value)) %>%
-  group_by(Month, Time, Series) %>%
-  summarise(Radiation_mean = mean(Value),
-            Radiation_sd = sd(Value)) %>%
+## The Statistics
+
+With this we're finished with our web scraping and can pursue exploring and better cleaning our data if choose to.
+
+Before I close this post, let's take a quick look at what we did scrape by generating a summary table with pricing in Barbados.
+
+```{r Summary Statistics for Property Types}
+data %>%
+  group_by(property_type) %>%
+  summarise(amount = n(),
+            `price (mean)` = mean(price),
+            `price (standard deviation)` = sd(price),
+            `price sq.ft (mean)` = mean(price_per_sqft, na.rm = TRUE),
+            `price sq.ft (standard deviation)` = sd(price_per_sqft, na.rm = TRUE)) %>%
+  arrange(`price sq.ft (mean)`) %>%
+  rename(`property type` = property_type) %>%
   ungroup() %>%
-  ggplot(aes(x = Time, y = Radiation_mean)) +
-  geom_line(aes(colour = Series)) +
-  geom_errorbar(aes(ymin = Radiation_mean - Radiation_sd,
-                    ymax = Radiation_mean + Radiation_sd),
-                width = 0.05,
-                alpha = 0.3) +
-  facet_grid(Series ~ Month,
-             scales = "free_y") +
-  labs(title = 'The Average Daily Irradiance',
-       x = 'Time',
-       y = 'Downwelling Irradiance (W/m^2)',
-       subtitle = 'The mean daily irradiance per month',
-       caption = 'includes standard deviation for each point') +
-  scale_y_continuous(labels = scales::comma) +
-  theme(axis.text.x = element_text(angle = 90),
-        legend.position = "none")  
+  gt::gt() %>% 
+  gt::tab_header(
+    title = "Summary Statistics"
+  ) %>%
+  gt::fmt_number(
+    columns = amount,
+    decimals = 0,
+    suffixing = TRUE
+  ) %>%
+  gt::fmt_currency(
+    columns = c(`price (mean)`,
+                `price (standard deviation)`,
+                `price sq.ft (mean)`,
+                `price sq.ft (standard deviation)`),
+    suffixing = TRUE,
+    currency = "BBD"
+  )
 
 ```
 
-Hopefully I've shown how easy it is to use r to transform our data and visualise it.
+We see there are `r length(unique(data$property_type))` property types, but with the amount of cleaning we've done so far, examining the category for Land seems to be the most useful.
+It has the lowest deviation.
 
-It wouldn't take much for me to create a template or a parametrised file to easily change inputs.
+We'll drill in on the specific summary statistics for Land, divided by Parish.
 
-I also could easily feed this data into a solar model and use it to check for performance discrepancies due to weather.
+```{r Summary Statistics for Land Boxplot}
 
+data %>%
+  filter(property_type == "Land") %>%
+  ggplot(aes(x = parish, y = log(price_per_sqft))) +
+  geom_boxplot(aes(fill = parish)) +
+labs(title = 'The Log Price ($/sq.ft.) for Land in Barbados',
+       x = 'Parish',
+       y = 'Log Price',
+       caption = 'please remember these are log values and are more useful for comparing orders of magnitude') +
+  scale_y_continuous(labels = scales::dollar_format(prefix = "log($",
+                                                    suffix = "/sq.ft.)")) +
+  theme(axis.text.x = element_text(angle = 90),
+        legend.position = "none")
 
-I personally used Excel for all of this work before, and to be frank I can do it easily in that tool (I'll never betray Excel 😀), but my experience with Excel and r are vastly different. I've only truly started using r recently while I've used Excel from university and straight through my entire career.
+```
 
-This should hopefully hint at how useful r can be in an energy analyst's pipeline.
+The above plot shows us that for certain parishes (see St. Michael, St. Joseph and St. James) they are large outliers in the \$/sq.ft in terms of how expensive they are.
+St. Andrew and St. Lucy also seem to tend in the opposite direction and are cheaper than other parishes.
+Overall there's quite a bit of variance in the price of land in general.
+
+```{r Summary Statistics for Land Barchart}
+
+data %>%
+  filter(property_type == "Land") %>%
+  group_by(property_type, parish) %>%
+  summarise(amount = n(),
+            `price (mean)` = mean(price),
+            `price (standard deviation)` = sd(price),
+            `price sq.ft (mean)` = mean(price_per_sqft, na.rm = TRUE),
+            `price sq.ft (standard deviation)` = sd(price_per_sqft, na.rm = TRUE)) %>%
+  arrange(`price sq.ft (mean)`) %>%
+  rename(`property type` = property_type) %>%
+  ungroup() %>%
+  ggplot(aes(x = parish, y = `price sq.ft (mean)`)) +
+  geom_col(aes(fill = parish)) +
+  geom_errorbar(aes(ymin = `price sq.ft (mean)` - `price sq.ft (standard deviation)`,
+                    ymax = `price sq.ft (mean)` + `price sq.ft (standard deviation)`),
+                width = 0.5,
+                alpha = 0.8) +
+labs(title = 'The Average Price ($/sq.ft.) for Land in Barbados',
+       x = 'Parish',
+       y = 'Average Price ($/sq.ft.)',
+       caption = 'includes standard deviation for each point') +
+  scale_y_continuous(labels = scales::dollar_format(suffix = "/sq.ft.")) +
+  theme(axis.text.x = element_text(angle = 90),
+        legend.position = "none")
+
+```
+
+What we mentioned about high outliers seems to be true as we see our error bars for certain values literally goes into the negative range which shows the influence of outliers in that group and also suggests that the average for those particular bars are also skewed.
+
+We'll simply put these values in a table for you to make your own conclusion.
+
+```{r Summary Statistics for Land}
+
+data %>%
+  filter(property_type == "Land") %>%
+  group_by(property_type, parish) %>%
+  summarise(amount = n(),
+            `price (mean)` = mean(price),
+            `price (standard deviation)` = sd(price),
+            `price sq.ft (mean)` = mean(price_per_sqft, na.rm = TRUE),
+            `price sq.ft (standard deviation)` = sd(price_per_sqft, na.rm = TRUE)) %>%
+  arrange(`price sq.ft (mean)`) %>%
+  rename(`property type` = property_type) %>%
+  ungroup() %>%
+  gt::gt() %>% 
+  gt::tab_header(
+    title = "Summary Statistics"
+  ) %>%
+  gt::fmt_number(
+    columns = amount,
+    decimals = 0,
+    suffixing = TRUE
+  ) %>%
+  gt::fmt_currency(
+    columns = c(`price (mean)`,
+                `price (standard deviation)`,
+                `price sq.ft (mean)`,
+                `price sq.ft (standard deviation)`),
+    suffixing = TRUE,
+    currency = "BBD"
+  )
+
+```
+
+Lastly we can generate a map showing the locations for each point which shows the location, price per sq.ft.
+and property type.
+
+```{r Summary Statistics for Property Map, warning = FALSE}
+data %>%
+  filter( !is.na(price_per_sqft) ) %>%
+  mutate(pop = paste0(property_type,": ","$",round(price_per_sqft,2))
+           ) %>%
+  leaflet() %>%
+  addTiles() %>%
+  addMarkers(
+    lat = ~latitude,
+    lng = ~longitude,
+    popup = ~pop,
+    clusterOptions = markerClusterOptions()) %>%
+  widgetframe::frameWidget(.,width = "100%")
+```
+
+## The Conclusion
+
+From this exercise we see an example of web scraping in r, along with handling a non-standard website.
+
+We also can see that this type of information still has its flaws, for example look at the map and you can still find points in the ocean, and from manual checks I found other input errors for different locations.
+Taking from a primary source does not negate the need for cleaning.
+
+I should also point out that this information is still only useful as a proxy, for example the prices listed are from the real estate agents, these prices won't necessarily be the final price paid and thus may not be what property actually costs in Barbados.
+
+In a future post, we may revisit this data for exploration and to see what statistics are used when dealing with real estate.
 
 ```{r Session Info}
 sessionInfo() %>%

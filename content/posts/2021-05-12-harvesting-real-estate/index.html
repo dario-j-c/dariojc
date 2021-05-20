@@ -1,0 +1,2933 @@
+---
+title: Harvesting Real Estate
+author: ''
+date: '2021-05-20'
+slug: rvesting-real-estate
+categories: ["R", "Barbados"]
+tags: ["Real Estate", "rvest", "web scraping"]
+subtitle: ''
+summary: ''
+authors: []
+lastmod: '2021-05-20 11:00:10 -04'
+featured: no
+image:
+  caption: 'Image credit: [**Unsplash**](https://unsplash.com/photos/f9qZuKoZYoY)'
+  focal_point: ''
+  preview_only: no
+projects: []
+---
+
+<script src="{{< blogdown/postref >}}index_files/header-attrs/header-attrs.js"></script>
+<script src="{{< blogdown/postref >}}index_files/htmlwidgets/htmlwidgets.js"></script>
+<script src="{{< blogdown/postref >}}index_files/pymjs/pym.v1.js"></script>
+<script src="{{< blogdown/postref >}}index_files/widgetframe-binding/widgetframe.js"></script>
+
+
+<div id="the-intro" class="section level2">
+<h2>The Intro</h2>
+<p>I find one of the strange road bumps you don’t expect in practicing data analytics is finding the data in the first place.
+Yes the world is currently overflowing with information, for instance the amount of data worldwide was estimated to be <a href="https://seedscientific.com/how-much-data-is-created-every-day/#:~:text=Every%20day%2C%20we%20create%20roughly,rate%20will%20become%20even%20greater.">44 zettabytes</a> at the beginning of 2020, and we’re not slowing down.
+Now zetta is the prefix for 1 sextillion, or 21 zeroes behind the 1, that’s only <a href="http://www.esa.int/Science_Exploration/Space_Science/Herschel/How_many_stars_are_there_in_the_Universe">1 - 2 zeroes</a> lower than the estimated number of stars in the universe.</p>
+<p>Yet even with all of this data, the question remains, how pertinent is any of this information to me.
+I’m in Barbados, and the things I’m interested in definitely involve where I live, but looking for first hand data online for Barbados doesn’t return a great deal of results.
+It feels like an information desert, yet just like an oasis, the data can still be found.</p>
+<p>One way is through web scraping, what this entails is collecting information, manually or otherwise, from a website or websites to be used.</p>
+</div>
+<div id="the-preliminaries" class="section level2">
+<h2>The Preliminaries</h2>
+<p>Before we do any scraping, we need to do so ethically.
+Many websites have robots.txt which informs us on what scraping behaviour is allowed for the site.
+In our case, it would also be useful to read the terms and agreements to ensure web scraping is allowed.
+I’m included this since I found some sites whose robots.txt allows scraping but terms and conditions read in the contrary.</p>
+<p>They are r packages (e.g. <strong>robotstxt</strong>) which allow you to check a site’s robots.txt in a r session, or websites (e.g. <a href="https://www.caniscrape.com/">this one</a>) which can be used to check as well.
+I chose to use the website in this case.</p>
+<p>I recommend this website also for reading more about web scraping and robots.txt.</p>
+<p>The site I found for this example is:</p>
+<ul>
+<li>Barbadian</li>
+<li>Allows for scraping in its robots.txt</li>
+<li>Its terms and conditions does not disallow scraping.</li>
+</ul>
+<p>We’ll be moving forward with this site, but I wish to respect their privacy and will neither be indicating the name of the site nor showing any particular set of data which may be used to identify it, or any particular party or individual on their website.</p>
+</div>
+<div id="the-data" class="section level2">
+<h2>The Data</h2>
+<p>The data we’ll be scraping is real estate information in Barbados.</p>
+<div id="the-code" class="section level3">
+<h3>The Code</h3>
+<p>We’ll start by just loading our libraries.</p>
+<p>The main library of interest today is rvest which will be doing the brunt of the work for collecting information.</p>
+<pre class="r"><code>library(tidyverse)
+library(rvest)
+library(leaflet)</code></pre>
+<div id="the-variables" class="section level4">
+<h4>The Variables</h4>
+<p>We’ll be using a particular set of variables which I won’t be displaying here, sorry if that makes the code more difficult to understand.</p>
+<pre class="r"><code># Please respect the privacy of the website
+# 
+# This function calls identifiable variable of the website
+
+if(!exists(&quot;hid_var&quot;, mode = &quot;function&quot;)) {
+  source(&quot;hid_var.R&quot;) 
+}
+hid_var()</code></pre>
+<p>Web scraping with rvest involves:</p>
+<ol style="list-style-type: decimal">
+<li>reading the entire page as html with <code>read_html</code></li>
+</ol>
+<ul>
+<li>If you view the page’s source, you will see the html code which this function will be reading. For Chrome &amp; Edge you can currently do this by right clicking and selecting “view page source”.</li>
+</ul>
+<ol start="2" style="list-style-type: decimal">
+<li>choosing the html tags &amp; elements of interest with <code>html_elements</code></li>
+</ol>
+<ul>
+<li><p>Within the html code are elements, usually denoted with some start and end tags <code>&lt;...&gt;</code> … <code>&lt;/...&gt;</code>.
+<code>html_elements</code> allows us to select certain tags to collect their contents (the element) using CSS selectors, or XPath expressions.</p>
+<p>For my purpose, I used <a href="https://rvest.tidyverse.org/articles/selectorgadget.html">selector gadget</a> to find the CSS selector I was interested in.</p></li>
+</ul>
+<ol start="3" style="list-style-type: decimal">
+<li>choosing additional information of the html tags / elements in the form of attributes with <code>html_attr</code></li>
+</ol>
+<ul>
+<li>The attribute is found in the start tag and can be used to isolate additional details. In the example, <code>&lt;a href="https://example.com"&gt;An Example Site&lt;/a&gt;</code>. The tag is <code>&lt;a&gt;</code> which has the attribute <code>href</code>.</li>
+</ul>
+<p>They are other functions, but we’ll only be using these ones.</p>
+<p>We will write our code to read multiple pages which will be implemented using a function to read each page.</p>
+<p>We’ll open a connection to each page, read each page, and then close our connection to it on each iteration to ensure this works without hiccups.</p>
+<p>We then combine the results from each page using <code>map_dfr</code> which will create one combined dataframe by appending each page’s results by row.</p>
+<pre class="r"><code># Get the website Data
+
+
+# Download property to find pages to scrape
+temp_property_id &lt;- map_dfr(1:row_limit, function(i) {
+  
+  # simple and effective progress indicator
+  # cat(&quot;.&quot;)
+  
+  # download the page of interest
+  pg &lt;- paste0(page_begin,
+               i,
+               page_end) %&gt;%
+    url() %&gt;%
+    read_html()
+  
+  # close connection to the page of interest
+  paste0(page_begin,
+         i,
+         page_end) %&gt;%
+    url() %&gt;%
+    close()
+  
+  # Check lengths of the three points of interest
+  length_1 &lt;- length(i)
+  
+  length_2 &lt;- pg %&gt;%
+    html_elements(temp_1) %&gt;%
+    html_text() %&gt;%
+    length()
+  
+  length_3 &lt;- pg %&gt;%
+    html_elements(&quot;a&quot;) %&gt;%
+    html_attr(&quot;onclick&quot;) %&gt;%
+    as_tibble() %&gt;%
+    filter(str_detect(string = value,
+                      pattern = &quot;LoadMap&quot;)) %&gt;%
+    as_vector() %&gt;%
+    length()
+  
+  # Select the max length between the three points of interest
+  max_length &lt;- max(c(length_1, length_2, length_3))
+  
+  # Place points of interest in a dataframe, and repeat a dummy value until they are the same length as the max length to avoid mismatched columns
+  data.frame(
+    web_page = c(i,
+                 rep(i, max_length - length_1)),
+    property_id = c(
+      pg %&gt;%
+        html_elements(temp_1) %&gt;%
+        html_attr(&quot;onclick&quot;) %&gt;%
+        parse_number(),
+      rep(i, max_length - length_2)),
+    location = c(
+      pg %&gt;%
+        html_elements(&quot;a&quot;) %&gt;%
+        html_attr(&quot;onclick&quot;) %&gt;%
+        as_tibble() %&gt;%
+        filter(str_detect(string = value,
+                          pattern = &quot;LoadMap&quot;)) %&gt;%
+        as_vector(),
+      rep(i, max_length - length_3)),
+    stringsAsFactors=FALSE)
+})
+
+# Display five random rows in generated dataframe
+sample(x = 1:nrow(temp_property_id),
+       size = 5,
+       replace = FALSE) %&gt;%
+  temp_property_id[.,] %&gt;%
+  #obscure variable to use for identification
+  mutate(property_id = &quot;00000&quot;,
+         location = paste( head(strsplit(location, &#39;&#39;)[[1]], 14), collapse = &quot;&quot;)
+         ) %&gt;%
+  as_tibble() %&gt;%
+  gt::gt() %&gt;% 
+  gt::tab_header(
+    title = &quot;Sample Values&quot;,
+    subtitle = &quot;Sample taken from initial scraped dataset&quot;
+  )</code></pre>
+<div id="ywmylyhpaf" style="overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
+<style>html {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Helvetica Neue', 'Fira Sans', 'Droid Sans', Arial, sans-serif;
+}
+
+#ywmylyhpaf .gt_table {
+  display: table;
+  border-collapse: collapse;
+  margin-left: auto;
+  margin-right: auto;
+  color: #333333;
+  font-size: 16px;
+  font-weight: normal;
+  font-style: normal;
+  background-color: #FFFFFF;
+  width: auto;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #A8A8A8;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #A8A8A8;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+}
+
+#ywmylyhpaf .gt_heading {
+  background-color: #FFFFFF;
+  text-align: center;
+  border-bottom-color: #FFFFFF;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+}
+
+#ywmylyhpaf .gt_title {
+  color: #333333;
+  font-size: 125%;
+  font-weight: initial;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  border-bottom-color: #FFFFFF;
+  border-bottom-width: 0;
+}
+
+#ywmylyhpaf .gt_subtitle {
+  color: #333333;
+  font-size: 85%;
+  font-weight: initial;
+  padding-top: 0;
+  padding-bottom: 4px;
+  border-top-color: #FFFFFF;
+  border-top-width: 0;
+}
+
+#ywmylyhpaf .gt_bottom_border {
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+}
+
+#ywmylyhpaf .gt_col_headings {
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+}
+
+#ywmylyhpaf .gt_col_heading {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: normal;
+  text-transform: inherit;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: bottom;
+  padding-top: 5px;
+  padding-bottom: 6px;
+  padding-left: 5px;
+  padding-right: 5px;
+  overflow-x: hidden;
+}
+
+#ywmylyhpaf .gt_column_spanner_outer {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: normal;
+  text-transform: inherit;
+  padding-top: 0;
+  padding-bottom: 0;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+#ywmylyhpaf .gt_column_spanner_outer:first-child {
+  padding-left: 0;
+}
+
+#ywmylyhpaf .gt_column_spanner_outer:last-child {
+  padding-right: 0;
+}
+
+#ywmylyhpaf .gt_column_spanner {
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  vertical-align: bottom;
+  padding-top: 5px;
+  padding-bottom: 6px;
+  overflow-x: hidden;
+  display: inline-block;
+  width: 100%;
+}
+
+#ywmylyhpaf .gt_group_heading {
+  padding: 8px;
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  text-transform: inherit;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: middle;
+}
+
+#ywmylyhpaf .gt_empty_group_heading {
+  padding: 0.5px;
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  vertical-align: middle;
+}
+
+#ywmylyhpaf .gt_from_md > :first-child {
+  margin-top: 0;
+}
+
+#ywmylyhpaf .gt_from_md > :last-child {
+  margin-bottom: 0;
+}
+
+#ywmylyhpaf .gt_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  margin: 10px;
+  border-top-style: solid;
+  border-top-width: 1px;
+  border-top-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: middle;
+  overflow-x: hidden;
+}
+
+#ywmylyhpaf .gt_stub {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  text-transform: inherit;
+  border-right-style: solid;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+  padding-left: 12px;
+}
+
+#ywmylyhpaf .gt_summary_row {
+  color: #333333;
+  background-color: #FFFFFF;
+  text-transform: inherit;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#ywmylyhpaf .gt_first_summary_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+}
+
+#ywmylyhpaf .gt_grand_summary_row {
+  color: #333333;
+  background-color: #FFFFFF;
+  text-transform: inherit;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#ywmylyhpaf .gt_first_grand_summary_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-top-style: double;
+  border-top-width: 6px;
+  border-top-color: #D3D3D3;
+}
+
+#ywmylyhpaf .gt_striped {
+  background-color: rgba(128, 128, 128, 0.05);
+}
+
+#ywmylyhpaf .gt_table_body {
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+}
+
+#ywmylyhpaf .gt_footnotes {
+  color: #333333;
+  background-color: #FFFFFF;
+  border-bottom-style: none;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+}
+
+#ywmylyhpaf .gt_footnote {
+  margin: 0px;
+  font-size: 90%;
+  padding: 4px;
+}
+
+#ywmylyhpaf .gt_sourcenotes {
+  color: #333333;
+  background-color: #FFFFFF;
+  border-bottom-style: none;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+}
+
+#ywmylyhpaf .gt_sourcenote {
+  font-size: 90%;
+  padding: 4px;
+}
+
+#ywmylyhpaf .gt_left {
+  text-align: left;
+}
+
+#ywmylyhpaf .gt_center {
+  text-align: center;
+}
+
+#ywmylyhpaf .gt_right {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+#ywmylyhpaf .gt_font_normal {
+  font-weight: normal;
+}
+
+#ywmylyhpaf .gt_font_bold {
+  font-weight: bold;
+}
+
+#ywmylyhpaf .gt_font_italic {
+  font-style: italic;
+}
+
+#ywmylyhpaf .gt_super {
+  font-size: 65%;
+}
+
+#ywmylyhpaf .gt_footnote_marks {
+  font-style: italic;
+  font-weight: normal;
+  font-size: 65%;
+}
+</style>
+<table class="gt_table">
+  <thead class="gt_header">
+    <tr>
+      <th colspan="3" class="gt_heading gt_title gt_font_normal" style>Sample Values</th>
+    </tr>
+    <tr>
+      <th colspan="3" class="gt_heading gt_subtitle gt_font_normal gt_bottom_border" style>Sample taken from initial scraped dataset</th>
+    </tr>
+  </thead>
+  <thead class="gt_col_headings">
+    <tr>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1">web_page</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_left" rowspan="1" colspan="1">property_id</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_left" rowspan="1" colspan="1">location</th>
+    </tr>
+  </thead>
+  <tbody class="gt_table_body">
+    <tr><td class="gt_row gt_right">288</td>
+<td class="gt_row gt_left">00000</td>
+<td class="gt_row gt_left">LoadMap('', ''</td></tr>
+    <tr><td class="gt_row gt_right">218</td>
+<td class="gt_row gt_left">00000</td>
+<td class="gt_row gt_left">LoadMap('', ''</td></tr>
+    <tr><td class="gt_row gt_right">375</td>
+<td class="gt_row gt_left">00000</td>
+<td class="gt_row gt_left">LoadMap('', ''</td></tr>
+    <tr><td class="gt_row gt_right">278</td>
+<td class="gt_row gt_left">00000</td>
+<td class="gt_row gt_left">LoadMap('', ''</td></tr>
+    <tr><td class="gt_row gt_right">252</td>
+<td class="gt_row gt_left">00000</td>
+<td class="gt_row gt_left">LoadMap('', ''</td></tr>
+  </tbody>
+  
+  
+</table>
+</div>
+<p>We’ll clean this dataframe by isolating the latitude and longitude where possible, and doing a quick pass to remove coordinates which don’t fall in a certain distance around Barbados.</p>
+<pre class="r"><code>temp_property_id &lt;- temp_property_id %&gt;%
+  separate(col = location,
+           into = c(&quot;latitude&quot;, &quot;longitude&quot;, NA),
+           sep = &quot;,&quot;) %&gt;%
+  # Simple sanity check for the values for latitude &amp; longitude
+  mutate(latitude = parse_number(latitude),
+         latitude = if_else(latitude &gt; 13.044347 &amp; latitude &lt; 13.335841,
+                            latitude,
+                            NA_real_),
+         longitude = parse_number(longitude),
+         longitude = if_else(longitude &gt; -59.647765 &amp; longitude &lt; -59.410176,
+                             longitude,
+                             NA_real_))</code></pre>
+<pre><code>## Warning: Expected 3 pieces. Additional pieces discarded in 5935 rows [1, 2, 3,
+## 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, ...].</code></pre>
+<pre><code>## Warning: 1398 parsing failures.
+##  row col expected     actual
+## 3609  -- a number LoadMap(&#39;&#39;
+## 3613  -- a number LoadMap(&#39;&#39;
+## 3614  -- a number LoadMap(&#39;&#39;
+## 3629  -- a number LoadMap(&#39;&#39;
+## 3630  -- a number LoadMap(&#39;&#39;
+## .... ... ........ ..........
+## See problems(...) for more details.</code></pre>
+<pre><code>## Warning: 1398 parsing failures.
+##  row col expected actual
+## 3609  -- a number     &#39;&#39;
+## 3613  -- a number     &#39;&#39;
+## 3614  -- a number     &#39;&#39;
+## 3629  -- a number     &#39;&#39;
+## 3630  -- a number     &#39;&#39;
+## .... ... ........ ......
+## See problems(...) for more details.</code></pre>
+<pre class="r"><code># Display five random rows in generated dataframe
+sample(x = 1:nrow(temp_property_id),
+       size = 5,
+       replace = FALSE) %&gt;%
+  temp_property_id[.,] %&gt;%
+  #obscure variable to use for identification
+  mutate(property_id = &quot;00000&quot;,
+         latitude = round(latitude, 2),
+         longitude = round(longitude, 2)
+         ) %&gt;%
+  as_tibble() %&gt;%
+  gt::gt() %&gt;% 
+  gt::tab_header(
+    title = &quot;Sample Values&quot;,
+    subtitle = &quot;Sample taken from initial scraped dataset&quot;
+  )</code></pre>
+<div id="xriwghpjbr" style="overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
+<style>html {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Helvetica Neue', 'Fira Sans', 'Droid Sans', Arial, sans-serif;
+}
+
+#xriwghpjbr .gt_table {
+  display: table;
+  border-collapse: collapse;
+  margin-left: auto;
+  margin-right: auto;
+  color: #333333;
+  font-size: 16px;
+  font-weight: normal;
+  font-style: normal;
+  background-color: #FFFFFF;
+  width: auto;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #A8A8A8;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #A8A8A8;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+}
+
+#xriwghpjbr .gt_heading {
+  background-color: #FFFFFF;
+  text-align: center;
+  border-bottom-color: #FFFFFF;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+}
+
+#xriwghpjbr .gt_title {
+  color: #333333;
+  font-size: 125%;
+  font-weight: initial;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  border-bottom-color: #FFFFFF;
+  border-bottom-width: 0;
+}
+
+#xriwghpjbr .gt_subtitle {
+  color: #333333;
+  font-size: 85%;
+  font-weight: initial;
+  padding-top: 0;
+  padding-bottom: 4px;
+  border-top-color: #FFFFFF;
+  border-top-width: 0;
+}
+
+#xriwghpjbr .gt_bottom_border {
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+}
+
+#xriwghpjbr .gt_col_headings {
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+}
+
+#xriwghpjbr .gt_col_heading {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: normal;
+  text-transform: inherit;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: bottom;
+  padding-top: 5px;
+  padding-bottom: 6px;
+  padding-left: 5px;
+  padding-right: 5px;
+  overflow-x: hidden;
+}
+
+#xriwghpjbr .gt_column_spanner_outer {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: normal;
+  text-transform: inherit;
+  padding-top: 0;
+  padding-bottom: 0;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+#xriwghpjbr .gt_column_spanner_outer:first-child {
+  padding-left: 0;
+}
+
+#xriwghpjbr .gt_column_spanner_outer:last-child {
+  padding-right: 0;
+}
+
+#xriwghpjbr .gt_column_spanner {
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  vertical-align: bottom;
+  padding-top: 5px;
+  padding-bottom: 6px;
+  overflow-x: hidden;
+  display: inline-block;
+  width: 100%;
+}
+
+#xriwghpjbr .gt_group_heading {
+  padding: 8px;
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  text-transform: inherit;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: middle;
+}
+
+#xriwghpjbr .gt_empty_group_heading {
+  padding: 0.5px;
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  vertical-align: middle;
+}
+
+#xriwghpjbr .gt_from_md > :first-child {
+  margin-top: 0;
+}
+
+#xriwghpjbr .gt_from_md > :last-child {
+  margin-bottom: 0;
+}
+
+#xriwghpjbr .gt_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  margin: 10px;
+  border-top-style: solid;
+  border-top-width: 1px;
+  border-top-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: middle;
+  overflow-x: hidden;
+}
+
+#xriwghpjbr .gt_stub {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  text-transform: inherit;
+  border-right-style: solid;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+  padding-left: 12px;
+}
+
+#xriwghpjbr .gt_summary_row {
+  color: #333333;
+  background-color: #FFFFFF;
+  text-transform: inherit;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#xriwghpjbr .gt_first_summary_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+}
+
+#xriwghpjbr .gt_grand_summary_row {
+  color: #333333;
+  background-color: #FFFFFF;
+  text-transform: inherit;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#xriwghpjbr .gt_first_grand_summary_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-top-style: double;
+  border-top-width: 6px;
+  border-top-color: #D3D3D3;
+}
+
+#xriwghpjbr .gt_striped {
+  background-color: rgba(128, 128, 128, 0.05);
+}
+
+#xriwghpjbr .gt_table_body {
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+}
+
+#xriwghpjbr .gt_footnotes {
+  color: #333333;
+  background-color: #FFFFFF;
+  border-bottom-style: none;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+}
+
+#xriwghpjbr .gt_footnote {
+  margin: 0px;
+  font-size: 90%;
+  padding: 4px;
+}
+
+#xriwghpjbr .gt_sourcenotes {
+  color: #333333;
+  background-color: #FFFFFF;
+  border-bottom-style: none;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+}
+
+#xriwghpjbr .gt_sourcenote {
+  font-size: 90%;
+  padding: 4px;
+}
+
+#xriwghpjbr .gt_left {
+  text-align: left;
+}
+
+#xriwghpjbr .gt_center {
+  text-align: center;
+}
+
+#xriwghpjbr .gt_right {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+#xriwghpjbr .gt_font_normal {
+  font-weight: normal;
+}
+
+#xriwghpjbr .gt_font_bold {
+  font-weight: bold;
+}
+
+#xriwghpjbr .gt_font_italic {
+  font-style: italic;
+}
+
+#xriwghpjbr .gt_super {
+  font-size: 65%;
+}
+
+#xriwghpjbr .gt_footnote_marks {
+  font-style: italic;
+  font-weight: normal;
+  font-size: 65%;
+}
+</style>
+<table class="gt_table">
+  <thead class="gt_header">
+    <tr>
+      <th colspan="4" class="gt_heading gt_title gt_font_normal" style>Sample Values</th>
+    </tr>
+    <tr>
+      <th colspan="4" class="gt_heading gt_subtitle gt_font_normal gt_bottom_border" style>Sample taken from initial scraped dataset</th>
+    </tr>
+  </thead>
+  <thead class="gt_col_headings">
+    <tr>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1">web_page</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_left" rowspan="1" colspan="1">property_id</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1">latitude</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1">longitude</th>
+    </tr>
+  </thead>
+  <tbody class="gt_table_body">
+    <tr><td class="gt_row gt_right">184</td>
+<td class="gt_row gt_left">00000</td>
+<td class="gt_row gt_right">13.09</td>
+<td class="gt_row gt_right">-59.45</td></tr>
+    <tr><td class="gt_row gt_right">334</td>
+<td class="gt_row gt_left">00000</td>
+<td class="gt_row gt_right">NA</td>
+<td class="gt_row gt_right">NA</td></tr>
+    <tr><td class="gt_row gt_right">387</td>
+<td class="gt_row gt_left">00000</td>
+<td class="gt_row gt_right">NA</td>
+<td class="gt_row gt_right">NA</td></tr>
+    <tr><td class="gt_row gt_right">78</td>
+<td class="gt_row gt_left">00000</td>
+<td class="gt_row gt_right">13.07</td>
+<td class="gt_row gt_right">-59.53</td></tr>
+    <tr><td class="gt_row gt_right">280</td>
+<td class="gt_row gt_left">00000</td>
+<td class="gt_row gt_right">NA</td>
+<td class="gt_row gt_right">NA</td></tr>
+  </tbody>
+  
+  
+</table>
+</div>
+<p>We will use the property id to read each of the pages we’re interested in.
+On each page, our points of interest do not always appear, and when they do appear, they don’t always appear in the same order.</p>
+<p>We will accommodate for this by ensuring our code will insert a ‘NA’ when the point of interest isn’t found and reorganising the collected data to properly group the information.</p>
+<p>The only new function added is the use of <code>html_text</code> which allows us to take the text from an element.</p>
+<pre class="r"><code>if (!any( str_detect(list.files(full.names = TRUE,
+                                recursive = TRUE,
+                                include.dirs = TRUE),
+                     &quot;realestate.RData&quot;)
+)
+){
+  
+  raw_length &lt;- nrow(temp_property_id)
+  
+  # Scrape the relevant details
+  raw_data &lt;- map_dfr(1:raw_length, function(i) {
+    # simple but effective progress indicator
+    cat(&quot;.&quot;)
+    
+    pg &lt;- read_html(url(paste0(raw_page_begin,
+                               temp_property_id$property_id[i],
+                               raw_page_end)))
+    
+    close(url(paste0(raw_page_begin,
+                     temp_property_id$property_id[i],
+                     raw_page_end)))
+    
+    # the ifelse checks if the desired value exists, if yes, take the value, if no insert NA
+    data.frame(
+      row_1 = ifelse(
+        length(html_text(html_elements(pg, type_1))) == 0,
+        NA_character_,
+        html_text(html_elements(pg, type_1))
+      ),
+      row_2 = ifelse(
+        length(html_text(html_elements(pg, type_2))) == 0,
+        NA_character_,
+        html_text(html_elements(pg, type_2))
+      ),
+      row_3 = ifelse(
+        length(html_text(html_elements(pg, type_3))) == 0,
+        NA_character_,
+        html_text(html_elements(pg, type_3))
+      ),
+      row_4 = ifelse(
+        length(html_text(html_elements(pg, type_4))) == 0,
+        NA_character_,
+        html_text(html_elements(pg, type_4))
+      ),
+      row_5 = ifelse(
+        length(html_text(html_elements(pg, type_5))) == 0,
+        NA_character_,
+        html_text(html_elements(pg, type_5))
+      ),
+      row_6 = ifelse(
+        length(html_text(html_elements(pg, type_6))) == 0,
+        NA_character_,
+        html_text(html_elements(pg, type_6))
+      ),
+      row_7 = ifelse(
+        length(html_text(html_elements(pg, type_7))) == 0,
+        NA_character_,
+        html_text(html_elements(pg, type_7))
+      ),
+      row_0 = ifelse(
+        length(html_text(html_elements(pg,type_8))) == 0,
+        NA_character_,
+        html_text(html_elements(pg,type_8))
+      ),
+      title_1 = ifelse(
+        length(html_text(html_elements(pg,type_9))) == 0,
+        NA_character_,
+        html_text(html_elements(pg,type_9))
+      ),
+      title_2 = ifelse(
+        length(html_text(html_elements(pg,type_10))) == 0,
+        NA_character_,
+        html_text(html_elements(pg,type_10))
+      ),
+      title_3 = ifelse(
+        length(html_text(html_elements(pg,type_11))) == 0,
+        NA_character_,
+        html_text(html_elements(pg,type_11))
+      ),
+      title_4 = ifelse(
+        length(html_text(html_elements(pg,type_12))) == 0,
+        NA_character_,
+        html_text(html_elements(pg,type_12))
+      ),
+      title_5 = ifelse(
+        length(html_text(html_elements(pg,type_13))) == 0,
+        NA_character_,
+        html_text(html_elements(pg,type_13))
+      ),
+      title_6 = ifelse(
+        length(html_text(html_elements(pg,type_14))) == 0,
+        NA_character_,
+        html_text(html_elements(pg,type_14))
+      ),
+      title_7 = ifelse(
+        length(html_text(html_elements(pg,type_15))) == 0,
+        NA_character_,
+        html_text(html_elements(pg,type_15))
+      ),
+      title_0 = ifelse(
+        length(html_text(html_elements(pg,type_16))) == 0,
+        NA_character_,
+        html_text(html_elements(pg,type_16))
+      ),
+      description = ifelse(
+        length(html_text(html_elements(pg,type_a))) == 0,
+        NA_character_,
+        html_text(html_elements(pg,type_a))
+      ),
+      realtor = ifelse(
+        length(html_text(html_elements(pg,type_b))) == 0,
+        NA_character_,
+        html_text(html_elements(pg,type_b))
+      ),
+      blurb = ifelse(
+        length(html_text(html_elements(pg,type_17))) == 0,
+        NA_character_,
+        # This uses `paste`, allowing us to combine multiple rows into one string
+        paste(html_text(html_elements(pg,type_17)), collapse = &quot; &quot;)
+      ),
+      # We collected these values earlier, so we won&#39;t need to insert NA here
+      latitude = temp_property_id$latitude[i],
+      longitude = temp_property_id$longitude[i],
+      link = paste0(raw_page_begin,
+                    temp_property_id$property_id[i],
+                    raw_page_end),
+      stringsAsFactors=FALSE)
+    
+  })
+  
+  
+  # Display five random rows in generated dataframe
+  sample(x = 1:nrow(raw_data),
+         size = 5,
+         replace = FALSE) %&gt;%
+    raw_data[.,] %&gt;%
+  # remove variables which may identify locations
+  select(!(description:link)) %&gt;%
+    as_tibble() %&gt;%
+    gt::gt() %&gt;% 
+  gt::tab_header(
+    title = &quot;Sample Values&quot;,
+    subtitle = &quot;Sample taken from scraped dataset&quot;
+  )
+  
+}</code></pre>
+<p>We will clean this dataset by sorting the data into appropriate columns and pull some useful features from the collected unstructured text which we labelled <code>blurb</code>.</p>
+<pre class="r"><code># Clean the Raw Data
+# I currently like using case_when here because it&#39;s easy for me to read and I can easily edit as desired.
+# If you use a more efficient method, let me know.
+
+if (!any( str_detect(list.files(full.names = TRUE,
+                                recursive = TRUE,
+                                include.dirs = TRUE),
+                     &quot;realestate.RData&quot;)
+)
+){
+  
+  data &lt;- raw_data %&gt;%
+    mutate(
+      # Collect the price into one column
+      price = case_when(
+        title_0 == &quot;Sale Price&quot; ~ row_0,
+        title_1 == &quot;Sale Price&quot; ~ row_1,
+        title_2 == &quot;Sale Price&quot; ~ row_2,
+        title_3 == &quot;Sale Price&quot; ~ row_3,
+        title_4 == &quot;Sale Price&quot; ~ row_4,
+        title_5 == &quot;Sale Price&quot; ~ row_5,
+        title_6 == &quot;Sale Price&quot; ~ row_6,
+        title_7 == &quot;Sale Price&quot; ~ row_7,
+        TRUE                    ~ NA_character_
+      ),
+      # Collect the property status into one column
+      property_status = case_when(
+        title_0 == &quot;Property Status&quot; ~ row_0,
+        title_1 == &quot;Property Status&quot; ~ row_1,
+        title_2 == &quot;Property Status&quot; ~ row_2,
+        title_3 == &quot;Property Status&quot; ~ row_3,
+        title_4 == &quot;Property Status&quot; ~ row_4,
+        title_5 == &quot;Property Status&quot; ~ row_5,
+        title_6 == &quot;Property Status&quot; ~ row_6,
+        title_7 == &quot;Property Status&quot; ~ row_7,
+        TRUE                         ~ NA_character_
+      ),
+      # Collect the property type into one column
+      property_type = case_when(
+        title_0 == &quot;Property Type&quot; ~ row_0,
+        title_1 == &quot;Property Type&quot; ~ row_1,
+        title_2 == &quot;Property Type&quot; ~ row_2,
+        title_3 == &quot;Property Type&quot; ~ row_3,
+        title_4 == &quot;Property Type&quot; ~ row_4,
+        title_5 == &quot;Property Type&quot; ~ row_5,
+        title_6 == &quot;Property Type&quot; ~ row_6,
+        title_7 == &quot;Property Type&quot; ~ row_7,
+        TRUE                       ~ NA_character_
+      ),
+      # Collect the number of bedrooms into one column
+      bedroom_no = case_when(
+        title_0 == &quot;Bedrooms&quot; ~ row_0,
+        title_1 == &quot;Bedrooms&quot; ~ row_1,
+        title_2 == &quot;Bedrooms&quot; ~ row_2,
+        title_3 == &quot;Bedrooms&quot; ~ row_3,
+        title_4 == &quot;Bedrooms&quot; ~ row_4,
+        title_5 == &quot;Bedrooms&quot; ~ row_5,
+        title_6 == &quot;Bedrooms&quot; ~ row_6,
+        title_7 == &quot;Bedrooms&quot; ~ row_7,
+        TRUE                  ~ NA_character_
+      ),
+      # Collect the number of bathrooms into one column
+      bathroom_no = case_when(
+        title_0 == &quot;Bathrooms&quot; ~ row_0,
+        title_1 == &quot;Bathrooms&quot; ~ row_1,
+        title_2 == &quot;Bathrooms&quot; ~ row_2,
+        title_3 == &quot;Bathrooms&quot; ~ row_3,
+        title_4 == &quot;Bathrooms&quot; ~ row_4,
+        title_5 == &quot;Bathrooms&quot; ~ row_5,
+        title_6 == &quot;Bathrooms&quot; ~ row_6,
+        title_7 == &quot;Bathrooms&quot; ~ row_7,
+        TRUE                   ~ NA_character_
+      ),
+      # Collect the year built into one column
+      year_built = case_when(
+        title_0 == &quot;Year Built&quot; ~ row_0,
+        title_1 == &quot;Year Built&quot; ~ row_1,
+        title_2 == &quot;Year Built&quot; ~ row_2,
+        title_3 == &quot;Year Built&quot; ~ row_3,
+        title_4 == &quot;Year Built&quot; ~ row_4,
+        title_5 == &quot;Year Built&quot; ~ row_5,
+        title_6 == &quot;Year Built&quot; ~ row_6,
+        title_7 == &quot;Year Built&quot; ~ row_7,
+        TRUE                    ~ NA_character_
+      ),
+      # Collect the building area into one column
+      bld_area = case_when(
+        title_0 == &quot;Building Area&quot; ~ row_0,
+        title_1 == &quot;Building Area&quot; ~ row_1,
+        title_2 == &quot;Building Area&quot; ~ row_2,
+        title_3 == &quot;Building Area&quot; ~ row_3,
+        title_4 == &quot;Building Area&quot; ~ row_4,
+        title_5 == &quot;Building Area&quot; ~ row_5,
+        title_6 == &quot;Building Area&quot; ~ row_6,
+        title_7 == &quot;Building Area&quot; ~ row_7,
+        TRUE                       ~ NA_character_
+      ),
+      # Collect the property area into one column
+      pty_area = case_when(
+        title_0 == &quot;Property Area&quot; ~ row_0,
+        title_1 == &quot;Property Area&quot; ~ row_1,
+        title_2 == &quot;Property Area&quot; ~ row_2,
+        title_3 == &quot;Property Area&quot; ~ row_3,
+        title_4 == &quot;Property Area&quot; ~ row_4,
+        title_5 == &quot;Property Area&quot; ~ row_5,
+        title_6 == &quot;Property Area&quot; ~ row_6,
+        title_7 == &quot;Property Area&quot; ~ row_7,
+        TRUE                       ~ NA_character_
+      ),
+      # Create feature for beach access
+      beach_access = case_when(
+        str_detect(blurb, regex(&quot;Beach&quot;, ignore_case = T)) ~ TRUE,
+        TRUE                                               ~ FALSE
+      ),
+      # Create feature for pool access
+      pool_access = case_when(
+        str_detect(blurb, regex(&quot;Pool&quot;, ignore_case = T)) ~ TRUE,
+        TRUE                                              ~ FALSE
+      ),
+      # Create feature for golf access
+      golf_access = case_when(
+        str_detect(blurb, regex(&quot;Golf&quot;, ignore_case = T)) ~ TRUE,
+        TRUE                                              ~ FALSE
+      ),
+      # Create feature for furnished building
+      furnished = case_when(
+        str_detect(blurb, regex(&quot;Furnish&quot;, ignore_case = T)) ~ TRUE,
+        TRUE                                                 ~ FALSE
+      ),
+      # Create feature for currency used
+      currency = case_when(
+        str_detect(price,&quot;(BB)&quot;) ~ &quot;BBD&quot;,
+        str_detect(price,&quot;(US)&quot;) ~ &quot;USD&quot;,
+        TRUE ~ NA_character_),
+      # Create feature for rent availability
+      rent_available = case_when(
+        str_detect(price,regex(&quot;\\s(rent)|^(rent)|\\s(lease)|^(lease)&quot;, ignore_case = T)) ~ TRUE,
+        TRUE ~ FALSE),
+      # Create feature for location by Parish
+      parish = case_when(
+        str_detect(description, &quot;Christ Church&quot;) ~ &quot;Christ Church&quot;,
+        str_detect(description, &quot;St. Andrew&quot;)    ~ &quot;St. Andrew&quot;,
+        str_detect(description, &quot;St. George&quot;)    ~ &quot;St. George&quot;,
+        str_detect(description, &quot;St. James&quot;)     ~ &quot;St. James&quot;,
+        str_detect(description, &quot;St. John&quot;)      ~ &quot;St. John&quot;,
+        str_detect(description, &quot;St. Joseph&quot;)    ~ &quot;St. Joseph&quot;,
+        str_detect(description, &quot;St. Lucy&quot;)      ~ &quot;St. Lucy&quot;,
+        str_detect(description, &quot;St. Michael&quot;)   ~ &quot;St. Michael&quot;,
+        str_detect(description, &quot;St. Peter&quot;)     ~ &quot;St. Peter&quot;,
+        str_detect(description, &quot;St. Philip&quot;)    ~ &quot;St. Philip&quot;,
+        str_detect(description, &quot;St. Thomas&quot;)    ~ &quot;St. Thomas&quot;,
+        TRUE                                     ~ NA_character_
+      ),
+      # Parse the values which should be numbers
+      price = parse_number(price),
+      # Convert any number which was found as acres to sq. ft.
+      pty_area = case_when(
+        str_detect(pty_area,
+                   regex(&quot;acre&quot;,
+                         ignore_case = T)) ~ parse_number(pty_area) * 43560.04,
+        str_detect(blurb,
+                   regex(&quot;[:digit:](|\\.[:digit:])\\s+(acre)&quot;,
+                         ignore_case = T)) ~  parse_number(
+                           str_extract(blurb,
+                                       regex(&quot;[:digit:](|\\.[:digit:])\\s+(acre)&quot;,
+                                             ignore_case = T))
+                         ) * 43560.04,
+        TRUE ~ parse_number(pty_area)
+      ),
+      bld_area = parse_number(bld_area),
+      bedroom_no = parse_number(bedroom_no),
+      bathroom_no = parse_number(bathroom_no),
+      year_built = parse_number(year_built),
+      # Create the feature for price per square foot
+      # We make some basic assumptions about what will likely be a price per square foot
+      price_per_sqft = case_when(
+        price &lt; 100 ~ price,
+        price &gt; 100 &amp; price &lt; 5000 ~ NA_real_,
+        price &gt; 5000 &amp; property_type == &quot;Land&quot; &amp; !is.na(pty_area) ~ price / pty_area,
+        price &gt; 5000 &amp; property_type == &quot;Land&quot; &amp; !is.na(bld_area) ~ price / bld_area,
+        price &gt; 5000 &amp; property_type != &quot;Land&quot; &amp; !is.na(bld_area) ~ price / bld_area,
+        price &gt; 5000 &amp; property_type != &quot;Land&quot; &amp; !is.na(pty_area) ~ price / pty_area,
+        TRUE ~ NA_real_
+      ),
+      # Remove any infinity values
+      price_per_sqft = ifelse(is.infinite(price_per_sqft), NA_real_, price_per_sqft)
+    ) %&gt;%
+    select(
+      price,
+      price_per_sqft,
+      currency,
+      property_status,
+      property_type,
+      rent_available,
+      bedroom_no,
+      bathroom_no,
+      beach_access,
+      pool_access,
+      golf_access,
+      furnished,
+      bld_area,
+      pty_area,
+      year_built,
+      realtor,
+      latitude,
+      longitude,
+      parish,
+      description,
+      link
+    )
+  data &lt;- na_if(data, &quot;-&quot;)
+  
+} else{
+  files &lt;- list.files(full.names = TRUE,
+                      recursive = TRUE,
+                      include.dirs = TRUE)
+  
+  # Select Desired folder
+  used_file &lt;- files[str_detect(files, &quot;realestate.RData&quot;)]
+  
+  load(used_file)
+  
+  rm(files,
+     used_file)
+}
+
+# Display five random rows in generated dataframe
+sample(x = 1:nrow(data),
+       size = 5,
+       replace = FALSE) %&gt;%
+  data[.,] %&gt;%
+  # remove variables which may identify locations
+  select(!(realtor:link)) %&gt;%
+  as_tibble() %&gt;%
+  gt::gt() %&gt;% 
+  gt::tab_header(
+    title = &quot;Sample Values&quot;,
+    subtitle = &quot;Sample taken from cleaned dataset&quot;
+  ) %&gt;%
+  gt::fmt_number(
+    columns = c(price_per_sqft,
+                bedroom_no,
+                bathroom_no,
+                bld_area,
+                pty_area),
+    decimals = 0,
+    suffixing = TRUE
+  ) %&gt;%
+  gt::fmt_currency(
+    columns = price,
+    suffixing = TRUE,
+    currency = &quot;BBD&quot;
+  )</code></pre>
+<div id="bdwalvlkny" style="overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
+<style>html {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Helvetica Neue', 'Fira Sans', 'Droid Sans', Arial, sans-serif;
+}
+
+#bdwalvlkny .gt_table {
+  display: table;
+  border-collapse: collapse;
+  margin-left: auto;
+  margin-right: auto;
+  color: #333333;
+  font-size: 16px;
+  font-weight: normal;
+  font-style: normal;
+  background-color: #FFFFFF;
+  width: auto;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #A8A8A8;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #A8A8A8;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+}
+
+#bdwalvlkny .gt_heading {
+  background-color: #FFFFFF;
+  text-align: center;
+  border-bottom-color: #FFFFFF;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+}
+
+#bdwalvlkny .gt_title {
+  color: #333333;
+  font-size: 125%;
+  font-weight: initial;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  border-bottom-color: #FFFFFF;
+  border-bottom-width: 0;
+}
+
+#bdwalvlkny .gt_subtitle {
+  color: #333333;
+  font-size: 85%;
+  font-weight: initial;
+  padding-top: 0;
+  padding-bottom: 4px;
+  border-top-color: #FFFFFF;
+  border-top-width: 0;
+}
+
+#bdwalvlkny .gt_bottom_border {
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+}
+
+#bdwalvlkny .gt_col_headings {
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+}
+
+#bdwalvlkny .gt_col_heading {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: normal;
+  text-transform: inherit;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: bottom;
+  padding-top: 5px;
+  padding-bottom: 6px;
+  padding-left: 5px;
+  padding-right: 5px;
+  overflow-x: hidden;
+}
+
+#bdwalvlkny .gt_column_spanner_outer {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: normal;
+  text-transform: inherit;
+  padding-top: 0;
+  padding-bottom: 0;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+#bdwalvlkny .gt_column_spanner_outer:first-child {
+  padding-left: 0;
+}
+
+#bdwalvlkny .gt_column_spanner_outer:last-child {
+  padding-right: 0;
+}
+
+#bdwalvlkny .gt_column_spanner {
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  vertical-align: bottom;
+  padding-top: 5px;
+  padding-bottom: 6px;
+  overflow-x: hidden;
+  display: inline-block;
+  width: 100%;
+}
+
+#bdwalvlkny .gt_group_heading {
+  padding: 8px;
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  text-transform: inherit;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: middle;
+}
+
+#bdwalvlkny .gt_empty_group_heading {
+  padding: 0.5px;
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  vertical-align: middle;
+}
+
+#bdwalvlkny .gt_from_md > :first-child {
+  margin-top: 0;
+}
+
+#bdwalvlkny .gt_from_md > :last-child {
+  margin-bottom: 0;
+}
+
+#bdwalvlkny .gt_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  margin: 10px;
+  border-top-style: solid;
+  border-top-width: 1px;
+  border-top-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: middle;
+  overflow-x: hidden;
+}
+
+#bdwalvlkny .gt_stub {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  text-transform: inherit;
+  border-right-style: solid;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+  padding-left: 12px;
+}
+
+#bdwalvlkny .gt_summary_row {
+  color: #333333;
+  background-color: #FFFFFF;
+  text-transform: inherit;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#bdwalvlkny .gt_first_summary_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+}
+
+#bdwalvlkny .gt_grand_summary_row {
+  color: #333333;
+  background-color: #FFFFFF;
+  text-transform: inherit;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#bdwalvlkny .gt_first_grand_summary_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-top-style: double;
+  border-top-width: 6px;
+  border-top-color: #D3D3D3;
+}
+
+#bdwalvlkny .gt_striped {
+  background-color: rgba(128, 128, 128, 0.05);
+}
+
+#bdwalvlkny .gt_table_body {
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+}
+
+#bdwalvlkny .gt_footnotes {
+  color: #333333;
+  background-color: #FFFFFF;
+  border-bottom-style: none;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+}
+
+#bdwalvlkny .gt_footnote {
+  margin: 0px;
+  font-size: 90%;
+  padding: 4px;
+}
+
+#bdwalvlkny .gt_sourcenotes {
+  color: #333333;
+  background-color: #FFFFFF;
+  border-bottom-style: none;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+}
+
+#bdwalvlkny .gt_sourcenote {
+  font-size: 90%;
+  padding: 4px;
+}
+
+#bdwalvlkny .gt_left {
+  text-align: left;
+}
+
+#bdwalvlkny .gt_center {
+  text-align: center;
+}
+
+#bdwalvlkny .gt_right {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+#bdwalvlkny .gt_font_normal {
+  font-weight: normal;
+}
+
+#bdwalvlkny .gt_font_bold {
+  font-weight: bold;
+}
+
+#bdwalvlkny .gt_font_italic {
+  font-style: italic;
+}
+
+#bdwalvlkny .gt_super {
+  font-size: 65%;
+}
+
+#bdwalvlkny .gt_footnote_marks {
+  font-style: italic;
+  font-weight: normal;
+  font-size: 65%;
+}
+</style>
+<table class="gt_table">
+  <thead class="gt_header">
+    <tr>
+      <th colspan="15" class="gt_heading gt_title gt_font_normal" style>Sample Values</th>
+    </tr>
+    <tr>
+      <th colspan="15" class="gt_heading gt_subtitle gt_font_normal gt_bottom_border" style>Sample taken from cleaned dataset</th>
+    </tr>
+  </thead>
+  <thead class="gt_col_headings">
+    <tr>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1">price</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1">price_per_sqft</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_left" rowspan="1" colspan="1">currency</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_left" rowspan="1" colspan="1">property_status</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_left" rowspan="1" colspan="1">property_type</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_center" rowspan="1" colspan="1">rent_available</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1">bedroom_no</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1">bathroom_no</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_center" rowspan="1" colspan="1">beach_access</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_center" rowspan="1" colspan="1">pool_access</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_center" rowspan="1" colspan="1">golf_access</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_center" rowspan="1" colspan="1">furnished</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1">bld_area</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1">pty_area</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1">year_built</th>
+    </tr>
+  </thead>
+  <tbody class="gt_table_body">
+    <tr><td class="gt_row gt_right">$117.32K</td>
+<td class="gt_row gt_right">16</td>
+<td class="gt_row gt_left">BBD</td>
+<td class="gt_row gt_left">Available</td>
+<td class="gt_row gt_left">Land</td>
+<td class="gt_row gt_center">FALSE</td>
+<td class="gt_row gt_right">NA</td>
+<td class="gt_row gt_right">NA</td>
+<td class="gt_row gt_center">FALSE</td>
+<td class="gt_row gt_center">FALSE</td>
+<td class="gt_row gt_center">FALSE</td>
+<td class="gt_row gt_center">FALSE</td>
+<td class="gt_row gt_right">NA</td>
+<td class="gt_row gt_right">7K</td>
+<td class="gt_row gt_right">NA</td></tr>
+    <tr><td class="gt_row gt_right">$500.00K</td>
+<td class="gt_row gt_right">3</td>
+<td class="gt_row gt_left">BBD</td>
+<td class="gt_row gt_left">Sold</td>
+<td class="gt_row gt_left">House</td>
+<td class="gt_row gt_center">FALSE</td>
+<td class="gt_row gt_right">3</td>
+<td class="gt_row gt_right">4</td>
+<td class="gt_row gt_center">FALSE</td>
+<td class="gt_row gt_center">FALSE</td>
+<td class="gt_row gt_center">FALSE</td>
+<td class="gt_row gt_center">FALSE</td>
+<td class="gt_row gt_right">NA</td>
+<td class="gt_row gt_right">174K</td>
+<td class="gt_row gt_right">NA</td></tr>
+    <tr><td class="gt_row gt_right">$95.00K</td>
+<td class="gt_row gt_right">19</td>
+<td class="gt_row gt_left">BBD</td>
+<td class="gt_row gt_left">Available</td>
+<td class="gt_row gt_left">Land</td>
+<td class="gt_row gt_center">FALSE</td>
+<td class="gt_row gt_right">NA</td>
+<td class="gt_row gt_right">NA</td>
+<td class="gt_row gt_center">FALSE</td>
+<td class="gt_row gt_center">FALSE</td>
+<td class="gt_row gt_center">FALSE</td>
+<td class="gt_row gt_center">FALSE</td>
+<td class="gt_row gt_right">NA</td>
+<td class="gt_row gt_right">5K</td>
+<td class="gt_row gt_right">NA</td></tr>
+    <tr><td class="gt_row gt_right">$350.00K</td>
+<td class="gt_row gt_right">13</td>
+<td class="gt_row gt_left">BBD</td>
+<td class="gt_row gt_left">Available</td>
+<td class="gt_row gt_left">Land</td>
+<td class="gt_row gt_center">FALSE</td>
+<td class="gt_row gt_right">NA</td>
+<td class="gt_row gt_right">NA</td>
+<td class="gt_row gt_center">FALSE</td>
+<td class="gt_row gt_center">TRUE</td>
+<td class="gt_row gt_center">FALSE</td>
+<td class="gt_row gt_center">FALSE</td>
+<td class="gt_row gt_right">NA</td>
+<td class="gt_row gt_right">28K</td>
+<td class="gt_row gt_right">NA</td></tr>
+    <tr><td class="gt_row gt_right">$115.00K</td>
+<td class="gt_row gt_right">15</td>
+<td class="gt_row gt_left">BBD</td>
+<td class="gt_row gt_left">Available</td>
+<td class="gt_row gt_left">Land</td>
+<td class="gt_row gt_center">FALSE</td>
+<td class="gt_row gt_right">NA</td>
+<td class="gt_row gt_right">NA</td>
+<td class="gt_row gt_center">FALSE</td>
+<td class="gt_row gt_center">FALSE</td>
+<td class="gt_row gt_center">FALSE</td>
+<td class="gt_row gt_center">FALSE</td>
+<td class="gt_row gt_right">NA</td>
+<td class="gt_row gt_right">8K</td>
+<td class="gt_row gt_right">NA</td></tr>
+  </tbody>
+  
+  
+</table>
+</div>
+<p>We’ll save our dataframe for use at a later date.</p>
+<pre class="r"><code># Save file
+if (!any( str_detect(list.files(full.names = TRUE,
+                                recursive = TRUE,
+                                include.dirs = TRUE),
+                     &quot;realestate.RData&quot;)
+)
+) { save(data, file = &quot;realestate.RData&quot;)
+}</code></pre>
+</div>
+</div>
+</div>
+<div id="the-statistics" class="section level2">
+<h2>The Statistics</h2>
+<p>With this we’re finished with our web scraping and can pursue exploring and better cleaning our data if choose to.</p>
+<p>Before I close this post, let’s take a quick look at what we did scrape by generating a summary table with pricing in Barbados.</p>
+<pre class="r"><code>data %&gt;%
+  group_by(property_type) %&gt;%
+  summarise(amount = n(),
+            `price (mean)` = mean(price),
+            `price (standard deviation)` = sd(price),
+            `price sq.ft (mean)` = mean(price_per_sqft, na.rm = TRUE),
+            `price sq.ft (standard deviation)` = sd(price_per_sqft, na.rm = TRUE)) %&gt;%
+  arrange(`price sq.ft (mean)`) %&gt;%
+  rename(`property type` = property_type) %&gt;%
+  ungroup() %&gt;%
+  gt::gt() %&gt;% 
+  gt::tab_header(
+    title = &quot;Summary Statistics&quot;
+  ) %&gt;%
+  gt::fmt_number(
+    columns = amount,
+    decimals = 0,
+    suffixing = TRUE
+  ) %&gt;%
+  gt::fmt_currency(
+    columns = c(`price (mean)`,
+                `price (standard deviation)`,
+                `price sq.ft (mean)`,
+                `price sq.ft (standard deviation)`),
+    suffixing = TRUE,
+    currency = &quot;BBD&quot;
+  )</code></pre>
+<div id="hbckofxbvm" style="overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
+<style>html {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Helvetica Neue', 'Fira Sans', 'Droid Sans', Arial, sans-serif;
+}
+
+#hbckofxbvm .gt_table {
+  display: table;
+  border-collapse: collapse;
+  margin-left: auto;
+  margin-right: auto;
+  color: #333333;
+  font-size: 16px;
+  font-weight: normal;
+  font-style: normal;
+  background-color: #FFFFFF;
+  width: auto;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #A8A8A8;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #A8A8A8;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+}
+
+#hbckofxbvm .gt_heading {
+  background-color: #FFFFFF;
+  text-align: center;
+  border-bottom-color: #FFFFFF;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+}
+
+#hbckofxbvm .gt_title {
+  color: #333333;
+  font-size: 125%;
+  font-weight: initial;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  border-bottom-color: #FFFFFF;
+  border-bottom-width: 0;
+}
+
+#hbckofxbvm .gt_subtitle {
+  color: #333333;
+  font-size: 85%;
+  font-weight: initial;
+  padding-top: 0;
+  padding-bottom: 4px;
+  border-top-color: #FFFFFF;
+  border-top-width: 0;
+}
+
+#hbckofxbvm .gt_bottom_border {
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+}
+
+#hbckofxbvm .gt_col_headings {
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+}
+
+#hbckofxbvm .gt_col_heading {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: normal;
+  text-transform: inherit;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: bottom;
+  padding-top: 5px;
+  padding-bottom: 6px;
+  padding-left: 5px;
+  padding-right: 5px;
+  overflow-x: hidden;
+}
+
+#hbckofxbvm .gt_column_spanner_outer {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: normal;
+  text-transform: inherit;
+  padding-top: 0;
+  padding-bottom: 0;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+#hbckofxbvm .gt_column_spanner_outer:first-child {
+  padding-left: 0;
+}
+
+#hbckofxbvm .gt_column_spanner_outer:last-child {
+  padding-right: 0;
+}
+
+#hbckofxbvm .gt_column_spanner {
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  vertical-align: bottom;
+  padding-top: 5px;
+  padding-bottom: 6px;
+  overflow-x: hidden;
+  display: inline-block;
+  width: 100%;
+}
+
+#hbckofxbvm .gt_group_heading {
+  padding: 8px;
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  text-transform: inherit;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: middle;
+}
+
+#hbckofxbvm .gt_empty_group_heading {
+  padding: 0.5px;
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  vertical-align: middle;
+}
+
+#hbckofxbvm .gt_from_md > :first-child {
+  margin-top: 0;
+}
+
+#hbckofxbvm .gt_from_md > :last-child {
+  margin-bottom: 0;
+}
+
+#hbckofxbvm .gt_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  margin: 10px;
+  border-top-style: solid;
+  border-top-width: 1px;
+  border-top-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: middle;
+  overflow-x: hidden;
+}
+
+#hbckofxbvm .gt_stub {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  text-transform: inherit;
+  border-right-style: solid;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+  padding-left: 12px;
+}
+
+#hbckofxbvm .gt_summary_row {
+  color: #333333;
+  background-color: #FFFFFF;
+  text-transform: inherit;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#hbckofxbvm .gt_first_summary_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+}
+
+#hbckofxbvm .gt_grand_summary_row {
+  color: #333333;
+  background-color: #FFFFFF;
+  text-transform: inherit;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#hbckofxbvm .gt_first_grand_summary_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-top-style: double;
+  border-top-width: 6px;
+  border-top-color: #D3D3D3;
+}
+
+#hbckofxbvm .gt_striped {
+  background-color: rgba(128, 128, 128, 0.05);
+}
+
+#hbckofxbvm .gt_table_body {
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+}
+
+#hbckofxbvm .gt_footnotes {
+  color: #333333;
+  background-color: #FFFFFF;
+  border-bottom-style: none;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+}
+
+#hbckofxbvm .gt_footnote {
+  margin: 0px;
+  font-size: 90%;
+  padding: 4px;
+}
+
+#hbckofxbvm .gt_sourcenotes {
+  color: #333333;
+  background-color: #FFFFFF;
+  border-bottom-style: none;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+}
+
+#hbckofxbvm .gt_sourcenote {
+  font-size: 90%;
+  padding: 4px;
+}
+
+#hbckofxbvm .gt_left {
+  text-align: left;
+}
+
+#hbckofxbvm .gt_center {
+  text-align: center;
+}
+
+#hbckofxbvm .gt_right {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+#hbckofxbvm .gt_font_normal {
+  font-weight: normal;
+}
+
+#hbckofxbvm .gt_font_bold {
+  font-weight: bold;
+}
+
+#hbckofxbvm .gt_font_italic {
+  font-style: italic;
+}
+
+#hbckofxbvm .gt_super {
+  font-size: 65%;
+}
+
+#hbckofxbvm .gt_footnote_marks {
+  font-style: italic;
+  font-weight: normal;
+  font-size: 65%;
+}
+</style>
+<table class="gt_table">
+  <thead class="gt_header">
+    <tr>
+      <th colspan="6" class="gt_heading gt_title gt_font_normal gt_bottom_border" style>Summary Statistics</th>
+    </tr>
+    
+  </thead>
+  <thead class="gt_col_headings">
+    <tr>
+      <th class="gt_col_heading gt_columns_bottom_border gt_left" rowspan="1" colspan="1">property type</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1">amount</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1">price (mean)</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1">price (standard deviation)</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1">price sq.ft (mean)</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1">price sq.ft (standard deviation)</th>
+    </tr>
+  </thead>
+  <tbody class="gt_table_body">
+    <tr><td class="gt_row gt_left">Land</td>
+<td class="gt_row gt_right">3K</td>
+<td class="gt_row gt_right">$766.06K</td>
+<td class="gt_row gt_right">$2.98M</td>
+<td class="gt_row gt_right">$24.12</td>
+<td class="gt_row gt_right">$43.07</td></tr>
+    <tr><td class="gt_row gt_left">Unfinished Structure</td>
+<td class="gt_row gt_right">24</td>
+<td class="gt_row gt_right">$278.33K</td>
+<td class="gt_row gt_right">$183.16K</td>
+<td class="gt_row gt_right">$88.29</td>
+<td class="gt_row gt_right">$60.54</td></tr>
+    <tr><td class="gt_row gt_left">Commercial Property - No Building</td>
+<td class="gt_row gt_right">24</td>
+<td class="gt_row gt_right">$1.32M</td>
+<td class="gt_row gt_right">$1.24M</td>
+<td class="gt_row gt_right">$114.63</td>
+<td class="gt_row gt_right">$221.41</td></tr>
+    <tr><td class="gt_row gt_left">Warehouse</td>
+<td class="gt_row gt_right">21</td>
+<td class="gt_row gt_right">$3.62M</td>
+<td class="gt_row gt_right">$4.27M</td>
+<td class="gt_row gt_right">$170.10</td>
+<td class="gt_row gt_right">$137.61</td></tr>
+    <tr><td class="gt_row gt_left">Commercial Property with Building/s</td>
+<td class="gt_row gt_right">86</td>
+<td class="gt_row gt_right">$3.01M</td>
+<td class="gt_row gt_right">$4.04M</td>
+<td class="gt_row gt_right">$227.91</td>
+<td class="gt_row gt_right">$167.17</td></tr>
+    <tr><td class="gt_row gt_left">Hotel</td>
+<td class="gt_row gt_right">25</td>
+<td class="gt_row gt_right">$9.33M</td>
+<td class="gt_row gt_right">$8.16M</td>
+<td class="gt_row gt_right">$230.04</td>
+<td class="gt_row gt_right">$183.01</td></tr>
+    <tr><td class="gt_row gt_left">Chattel House</td>
+<td class="gt_row gt_right">1</td>
+<td class="gt_row gt_right">$250.00K</td>
+<td class="gt_row gt_right">NA</td>
+<td class="gt_row gt_right">$292.91</td>
+<td class="gt_row gt_right">NA</td></tr>
+    <tr><td class="gt_row gt_left">Plantation House</td>
+<td class="gt_row gt_right">37</td>
+<td class="gt_row gt_right">$6.18M</td>
+<td class="gt_row gt_right">$9.88M</td>
+<td class="gt_row gt_right">$313.55</td>
+<td class="gt_row gt_right">$477.18</td></tr>
+    <tr><td class="gt_row gt_left">Apartment Block</td>
+<td class="gt_row gt_right">102</td>
+<td class="gt_row gt_right">$1.47M</td>
+<td class="gt_row gt_right">$1.70M</td>
+<td class="gt_row gt_right">$355.44</td>
+<td class="gt_row gt_right">$745.34</td></tr>
+    <tr><td class="gt_row gt_left">Shop</td>
+<td class="gt_row gt_right">12</td>
+<td class="gt_row gt_right">$2.26M</td>
+<td class="gt_row gt_right">$2.43M</td>
+<td class="gt_row gt_right">$368.87</td>
+<td class="gt_row gt_right">$263.76</td></tr>
+    <tr><td class="gt_row gt_left">House</td>
+<td class="gt_row gt_right">2K</td>
+<td class="gt_row gt_right">$1.66M</td>
+<td class="gt_row gt_right">$3.48M</td>
+<td class="gt_row gt_right">$391.57</td>
+<td class="gt_row gt_right">$849.17</td></tr>
+    <tr><td class="gt_row gt_left">Other</td>
+<td class="gt_row gt_right">35</td>
+<td class="gt_row gt_right">$3.07M</td>
+<td class="gt_row gt_right">$4.46M</td>
+<td class="gt_row gt_right">$409.09</td>
+<td class="gt_row gt_right">$382.13</td></tr>
+    <tr><td class="gt_row gt_left">Guest House</td>
+<td class="gt_row gt_right">6</td>
+<td class="gt_row gt_right">$2.03M</td>
+<td class="gt_row gt_right">$701.19K</td>
+<td class="gt_row gt_right">$452.81</td>
+<td class="gt_row gt_right">$458.53</td></tr>
+    <tr><td class="gt_row gt_left">Town House</td>
+<td class="gt_row gt_right">384</td>
+<td class="gt_row gt_right">$1.13M</td>
+<td class="gt_row gt_right">$886.38K</td>
+<td class="gt_row gt_right">$528.38</td>
+<td class="gt_row gt_right">$304.17</td></tr>
+    <tr><td class="gt_row gt_left">Restaurant</td>
+<td class="gt_row gt_right">17</td>
+<td class="gt_row gt_right">$2.30M</td>
+<td class="gt_row gt_right">$2.36M</td>
+<td class="gt_row gt_right">$557.24</td>
+<td class="gt_row gt_right">$488.67</td></tr>
+    <tr><td class="gt_row gt_left">Office</td>
+<td class="gt_row gt_right">43</td>
+<td class="gt_row gt_right">$2.93M</td>
+<td class="gt_row gt_right">$3.45M</td>
+<td class="gt_row gt_right">$603.71</td>
+<td class="gt_row gt_right">$1.42K</td></tr>
+    <tr><td class="gt_row gt_left">Apartment / Condo</td>
+<td class="gt_row gt_right">612</td>
+<td class="gt_row gt_right">$1.25M</td>
+<td class="gt_row gt_right">$1.45M</td>
+<td class="gt_row gt_right">$751.04</td>
+<td class="gt_row gt_right">$404.75</td></tr>
+    <tr><td class="gt_row gt_left">12-month BWS Rental property</td>
+<td class="gt_row gt_right">4</td>
+<td class="gt_row gt_right">$2.02M</td>
+<td class="gt_row gt_right">$1.66M</td>
+<td class="gt_row gt_right">$1.06K</td>
+<td class="gt_row gt_right">$582.31</td></tr>
+    <tr><td class="gt_row gt_left">Bank-owned property</td>
+<td class="gt_row gt_right">4</td>
+<td class="gt_row gt_right">$2.81M</td>
+<td class="gt_row gt_right">$4.66M</td>
+<td class="gt_row gt_right">$1.22K</td>
+<td class="gt_row gt_right">$2.33K</td></tr>
+    <tr><td class="gt_row gt_left">NA</td>
+<td class="gt_row gt_right">14</td>
+<td class="gt_row gt_right">NA</td>
+<td class="gt_row gt_right">NA</td>
+<td class="gt_row gt_right">NaN</td>
+<td class="gt_row gt_right">NA</td></tr>
+  </tbody>
+  
+  
+</table>
+</div>
+<p>We see there are 20 property types, but with the amount of cleaning we’ve done so far, examining the category for Land seems to be the most useful.
+It has the lowest deviation.</p>
+<p>We’ll drill in on the specific summary statistics for Land, divided by Parish.</p>
+<pre class="r"><code>data %&gt;%
+  filter(property_type == &quot;Land&quot;) %&gt;%
+  ggplot(aes(x = parish, y = log(price_per_sqft))) +
+  geom_boxplot(aes(fill = parish)) +
+labs(title = &#39;The Log Price ($/sq.ft.) for Land in Barbados&#39;,
+       x = &#39;Parish&#39;,
+       y = &#39;Log Price&#39;,
+       caption = &#39;please remember these are log values and are more useful for comparing orders of magnitude&#39;) +
+  scale_y_continuous(labels = scales::dollar_format(prefix = &quot;log($&quot;,
+                                                    suffix = &quot;/sq.ft.)&quot;)) +
+  theme(axis.text.x = element_text(angle = 90),
+        legend.position = &quot;none&quot;)</code></pre>
+<pre><code>## Warning: Removed 180 rows containing non-finite values (stat_boxplot).</code></pre>
+<p><img src="{{< blogdown/postref >}}index_files/figure-html/Summary%20Statistics%20for%20Land%20Boxplot-1.png" width="672" /></p>
+<p>The above plot shows us that for certain parishes (see St. Michael, St. Joseph and St. James) they are large outliers in the $/sq.ft in terms of how expensive they are.
+St. Andrew and St. Lucy also seem to tend in the opposite direction and are cheaper than other parishes.
+Overall there’s quite a bit of variance in the price of land in general.</p>
+<pre class="r"><code>data %&gt;%
+  filter(property_type == &quot;Land&quot;) %&gt;%
+  group_by(property_type, parish) %&gt;%
+  summarise(amount = n(),
+            `price (mean)` = mean(price),
+            `price (standard deviation)` = sd(price),
+            `price sq.ft (mean)` = mean(price_per_sqft, na.rm = TRUE),
+            `price sq.ft (standard deviation)` = sd(price_per_sqft, na.rm = TRUE)) %&gt;%
+  arrange(`price sq.ft (mean)`) %&gt;%
+  rename(`property type` = property_type) %&gt;%
+  ungroup() %&gt;%
+  ggplot(aes(x = parish, y = `price sq.ft (mean)`)) +
+  geom_col(aes(fill = parish)) +
+  geom_errorbar(aes(ymin = `price sq.ft (mean)` - `price sq.ft (standard deviation)`,
+                    ymax = `price sq.ft (mean)` + `price sq.ft (standard deviation)`),
+                width = 0.5,
+                alpha = 0.8) +
+labs(title = &#39;The Average Price ($/sq.ft.) for Land in Barbados&#39;,
+       x = &#39;Parish&#39;,
+       y = &#39;Average Price ($/sq.ft.)&#39;,
+       caption = &#39;includes standard deviation for each point&#39;) +
+  scale_y_continuous(labels = scales::dollar_format(suffix = &quot;/sq.ft.&quot;)) +
+  theme(axis.text.x = element_text(angle = 90),
+        legend.position = &quot;none&quot;)</code></pre>
+<pre><code>## `summarise()` has grouped output by &#39;property_type&#39;. You can override using the `.groups` argument.</code></pre>
+<p><img src="{{< blogdown/postref >}}index_files/figure-html/Summary%20Statistics%20for%20Land%20Barchart-1.png" width="672" /></p>
+<p>What we mentioned about high outliers seems to be true as we see our error bars for certain values literally goes into the negative range which shows the influence of outliers in that group and also suggests that the average for those particular bars are also skewed.</p>
+<p>We’ll simply put these values in a table for you to make your own conclusion.</p>
+<pre class="r"><code>data %&gt;%
+  filter(property_type == &quot;Land&quot;) %&gt;%
+  group_by(property_type, parish) %&gt;%
+  summarise(amount = n(),
+            `price (mean)` = mean(price),
+            `price (standard deviation)` = sd(price),
+            `price sq.ft (mean)` = mean(price_per_sqft, na.rm = TRUE),
+            `price sq.ft (standard deviation)` = sd(price_per_sqft, na.rm = TRUE)) %&gt;%
+  arrange(`price sq.ft (mean)`) %&gt;%
+  rename(`property type` = property_type) %&gt;%
+  ungroup() %&gt;%
+  gt::gt() %&gt;% 
+  gt::tab_header(
+    title = &quot;Summary Statistics&quot;
+  ) %&gt;%
+  gt::fmt_number(
+    columns = amount,
+    decimals = 0,
+    suffixing = TRUE
+  ) %&gt;%
+  gt::fmt_currency(
+    columns = c(`price (mean)`,
+                `price (standard deviation)`,
+                `price sq.ft (mean)`,
+                `price sq.ft (standard deviation)`),
+    suffixing = TRUE,
+    currency = &quot;BBD&quot;
+  )</code></pre>
+<pre><code>## `summarise()` has grouped output by &#39;property_type&#39;. You can override using the `.groups` argument.</code></pre>
+<div id="sufwrkzvzz" style="overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
+<style>html {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Helvetica Neue', 'Fira Sans', 'Droid Sans', Arial, sans-serif;
+}
+
+#sufwrkzvzz .gt_table {
+  display: table;
+  border-collapse: collapse;
+  margin-left: auto;
+  margin-right: auto;
+  color: #333333;
+  font-size: 16px;
+  font-weight: normal;
+  font-style: normal;
+  background-color: #FFFFFF;
+  width: auto;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #A8A8A8;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #A8A8A8;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+}
+
+#sufwrkzvzz .gt_heading {
+  background-color: #FFFFFF;
+  text-align: center;
+  border-bottom-color: #FFFFFF;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+}
+
+#sufwrkzvzz .gt_title {
+  color: #333333;
+  font-size: 125%;
+  font-weight: initial;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  border-bottom-color: #FFFFFF;
+  border-bottom-width: 0;
+}
+
+#sufwrkzvzz .gt_subtitle {
+  color: #333333;
+  font-size: 85%;
+  font-weight: initial;
+  padding-top: 0;
+  padding-bottom: 4px;
+  border-top-color: #FFFFFF;
+  border-top-width: 0;
+}
+
+#sufwrkzvzz .gt_bottom_border {
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+}
+
+#sufwrkzvzz .gt_col_headings {
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+}
+
+#sufwrkzvzz .gt_col_heading {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: normal;
+  text-transform: inherit;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: bottom;
+  padding-top: 5px;
+  padding-bottom: 6px;
+  padding-left: 5px;
+  padding-right: 5px;
+  overflow-x: hidden;
+}
+
+#sufwrkzvzz .gt_column_spanner_outer {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: normal;
+  text-transform: inherit;
+  padding-top: 0;
+  padding-bottom: 0;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+#sufwrkzvzz .gt_column_spanner_outer:first-child {
+  padding-left: 0;
+}
+
+#sufwrkzvzz .gt_column_spanner_outer:last-child {
+  padding-right: 0;
+}
+
+#sufwrkzvzz .gt_column_spanner {
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  vertical-align: bottom;
+  padding-top: 5px;
+  padding-bottom: 6px;
+  overflow-x: hidden;
+  display: inline-block;
+  width: 100%;
+}
+
+#sufwrkzvzz .gt_group_heading {
+  padding: 8px;
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  text-transform: inherit;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: middle;
+}
+
+#sufwrkzvzz .gt_empty_group_heading {
+  padding: 0.5px;
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  vertical-align: middle;
+}
+
+#sufwrkzvzz .gt_from_md > :first-child {
+  margin-top: 0;
+}
+
+#sufwrkzvzz .gt_from_md > :last-child {
+  margin-bottom: 0;
+}
+
+#sufwrkzvzz .gt_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  margin: 10px;
+  border-top-style: solid;
+  border-top-width: 1px;
+  border-top-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: middle;
+  overflow-x: hidden;
+}
+
+#sufwrkzvzz .gt_stub {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  text-transform: inherit;
+  border-right-style: solid;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+  padding-left: 12px;
+}
+
+#sufwrkzvzz .gt_summary_row {
+  color: #333333;
+  background-color: #FFFFFF;
+  text-transform: inherit;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#sufwrkzvzz .gt_first_summary_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+}
+
+#sufwrkzvzz .gt_grand_summary_row {
+  color: #333333;
+  background-color: #FFFFFF;
+  text-transform: inherit;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#sufwrkzvzz .gt_first_grand_summary_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-top-style: double;
+  border-top-width: 6px;
+  border-top-color: #D3D3D3;
+}
+
+#sufwrkzvzz .gt_striped {
+  background-color: rgba(128, 128, 128, 0.05);
+}
+
+#sufwrkzvzz .gt_table_body {
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+}
+
+#sufwrkzvzz .gt_footnotes {
+  color: #333333;
+  background-color: #FFFFFF;
+  border-bottom-style: none;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+}
+
+#sufwrkzvzz .gt_footnote {
+  margin: 0px;
+  font-size: 90%;
+  padding: 4px;
+}
+
+#sufwrkzvzz .gt_sourcenotes {
+  color: #333333;
+  background-color: #FFFFFF;
+  border-bottom-style: none;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+}
+
+#sufwrkzvzz .gt_sourcenote {
+  font-size: 90%;
+  padding: 4px;
+}
+
+#sufwrkzvzz .gt_left {
+  text-align: left;
+}
+
+#sufwrkzvzz .gt_center {
+  text-align: center;
+}
+
+#sufwrkzvzz .gt_right {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+#sufwrkzvzz .gt_font_normal {
+  font-weight: normal;
+}
+
+#sufwrkzvzz .gt_font_bold {
+  font-weight: bold;
+}
+
+#sufwrkzvzz .gt_font_italic {
+  font-style: italic;
+}
+
+#sufwrkzvzz .gt_super {
+  font-size: 65%;
+}
+
+#sufwrkzvzz .gt_footnote_marks {
+  font-style: italic;
+  font-weight: normal;
+  font-size: 65%;
+}
+</style>
+<table class="gt_table">
+  <thead class="gt_header">
+    <tr>
+      <th colspan="7" class="gt_heading gt_title gt_font_normal gt_bottom_border" style>Summary Statistics</th>
+    </tr>
+    
+  </thead>
+  <thead class="gt_col_headings">
+    <tr>
+      <th class="gt_col_heading gt_columns_bottom_border gt_left" rowspan="1" colspan="1">property type</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_left" rowspan="1" colspan="1">parish</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1">amount</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1">price (mean)</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1">price (standard deviation)</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1">price sq.ft (mean)</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1">price sq.ft (standard deviation)</th>
+    </tr>
+  </thead>
+  <tbody class="gt_table_body">
+    <tr><td class="gt_row gt_left">Land</td>
+<td class="gt_row gt_left">St. Andrew</td>
+<td class="gt_row gt_right">9</td>
+<td class="gt_row gt_right">$955.78K</td>
+<td class="gt_row gt_right">$1.66M</td>
+<td class="gt_row gt_right">$6.27</td>
+<td class="gt_row gt_right">$7.80</td></tr>
+    <tr><td class="gt_row gt_left">Land</td>
+<td class="gt_row gt_left">St. Lucy</td>
+<td class="gt_row gt_right">44</td>
+<td class="gt_row gt_right">$1.28M</td>
+<td class="gt_row gt_right">$4.79M</td>
+<td class="gt_row gt_right">$13.57</td>
+<td class="gt_row gt_right">$11.52</td></tr>
+    <tr><td class="gt_row gt_left">Land</td>
+<td class="gt_row gt_left">St. John</td>
+<td class="gt_row gt_right">156</td>
+<td class="gt_row gt_right">$275.74K</td>
+<td class="gt_row gt_right">$1.01M</td>
+<td class="gt_row gt_right">$15.82</td>
+<td class="gt_row gt_right">$13.96</td></tr>
+    <tr><td class="gt_row gt_left">Land</td>
+<td class="gt_row gt_left">St. Philip</td>
+<td class="gt_row gt_right">604</td>
+<td class="gt_row gt_right">$551.61K</td>
+<td class="gt_row gt_right">$2.88M</td>
+<td class="gt_row gt_right">$17.57</td>
+<td class="gt_row gt_right">$7.13</td></tr>
+    <tr><td class="gt_row gt_left">Land</td>
+<td class="gt_row gt_left">St. Thomas</td>
+<td class="gt_row gt_right">284</td>
+<td class="gt_row gt_right">$569.78K</td>
+<td class="gt_row gt_right">$1.16M</td>
+<td class="gt_row gt_right">$21.29</td>
+<td class="gt_row gt_right">$15.51</td></tr>
+    <tr><td class="gt_row gt_left">Land</td>
+<td class="gt_row gt_left">St. George</td>
+<td class="gt_row gt_right">345</td>
+<td class="gt_row gt_right">$360.98K</td>
+<td class="gt_row gt_right">$1.62M</td>
+<td class="gt_row gt_right">$21.53</td>
+<td class="gt_row gt_right">$8.58</td></tr>
+    <tr><td class="gt_row gt_left">Land</td>
+<td class="gt_row gt_left">St. Peter</td>
+<td class="gt_row gt_right">132</td>
+<td class="gt_row gt_right">$1.50M</td>
+<td class="gt_row gt_right">$5.48M</td>
+<td class="gt_row gt_right">$23.68</td>
+<td class="gt_row gt_right">$25.83</td></tr>
+    <tr><td class="gt_row gt_left">Land</td>
+<td class="gt_row gt_left">Christ Church</td>
+<td class="gt_row gt_right">711</td>
+<td class="gt_row gt_right">$603.46K</td>
+<td class="gt_row gt_right">$1.96M</td>
+<td class="gt_row gt_right">$24.04</td>
+<td class="gt_row gt_right">$21.87</td></tr>
+    <tr><td class="gt_row gt_left">Land</td>
+<td class="gt_row gt_left">St. Joseph</td>
+<td class="gt_row gt_right">35</td>
+<td class="gt_row gt_right">$1.26M</td>
+<td class="gt_row gt_right">$3.74M</td>
+<td class="gt_row gt_right">$37.66</td>
+<td class="gt_row gt_right">$65.16</td></tr>
+    <tr><td class="gt_row gt_left">Land</td>
+<td class="gt_row gt_left">St. James</td>
+<td class="gt_row gt_right">234</td>
+<td class="gt_row gt_right">$1.40M</td>
+<td class="gt_row gt_right">$4.06M</td>
+<td class="gt_row gt_right">$40.35</td>
+<td class="gt_row gt_right">$78.35</td></tr>
+    <tr><td class="gt_row gt_left">Land</td>
+<td class="gt_row gt_left">St. Michael</td>
+<td class="gt_row gt_right">190</td>
+<td class="gt_row gt_right">$1.98M</td>
+<td class="gt_row gt_right">$5.30M</td>
+<td class="gt_row gt_right">$41.76</td>
+<td class="gt_row gt_right">$120.22</td></tr>
+  </tbody>
+  
+  
+</table>
+</div>
+<p>Lastly we can generate a map showing the locations for each point which shows the location, price per sq.ft.
+and property type.</p>
+<pre class="r"><code>data %&gt;%
+  filter( !is.na(price_per_sqft) ) %&gt;%
+  mutate(pop = paste0(property_type,&quot;: &quot;,&quot;$&quot;,round(price_per_sqft,2))
+           ) %&gt;%
+  leaflet() %&gt;%
+  addTiles() %&gt;%
+  addMarkers(
+    lat = ~latitude,
+    lng = ~longitude,
+    popup = ~pop,
+    clusterOptions = markerClusterOptions()) %&gt;%
+  widgetframe::frameWidget(.,width = &quot;100%&quot;)</code></pre>
+<div id="htmlwidget-1" style="width:100%;height:480px;" class="widgetframe html-widget"></div>
+<script type="application/json" data-for="htmlwidget-1">{"x":{"url":"index_files/figure-html//widgets/widget_Summary Statistics for Property Map.html","options":{"xdomain":"*","allowfullscreen":false,"lazyload":false}},"evals":[],"jsHooks":[]}</script>
+</div>
+<div id="the-conclusion" class="section level2">
+<h2>The Conclusion</h2>
+<p>From this exercise we see an example of web scraping in r, along with handling a non-standard website.</p>
+<p>We also can see that this type of information still has its flaws, for example look at the map and you can still find points in the ocean, and from manual checks I found other input errors for different locations.
+Taking from a primary source does not negate the need for cleaning.</p>
+<p>I should also point out that this information is still only useful as a proxy, for example the prices listed are from the real estate agents, these prices won’t necessarily be the final price paid and thus may not be what property actually costs in Barbados.</p>
+<p>In a future post, we may revisit this data for exploration and to see what statistics are used when dealing with real estate.</p>
+<pre class="r"><code>sessionInfo() %&gt;%
+  print(., locale = FALSE)</code></pre>
+<pre><code>## R version 4.1.0 (2021-05-18)
+## Platform: x86_64-w64-mingw32/x64 (64-bit)
+## Running under: Windows 10 x64 (build 19042)
+## 
+## Matrix products: default
+## 
+## attached base packages:
+## [1] stats     graphics  grDevices utils     datasets  methods   base     
+## 
+## other attached packages:
+##  [1] leaflet_2.0.4.1 rvest_1.0.0     forcats_0.5.1   stringr_1.4.0  
+##  [5] dplyr_1.0.6     purrr_0.3.4     readr_1.4.0     tidyr_1.1.3    
+##  [9] tibble_3.1.2    ggplot2_3.3.3   tidyverse_1.3.1
+## 
+## loaded via a namespace (and not attached):
+##  [1] Rcpp_1.0.6        lubridate_1.7.10  assertthat_0.2.1  digest_0.6.27    
+##  [5] utf8_1.2.1        R6_2.5.0          cellranger_1.1.0  backports_1.2.1  
+##  [9] reprex_2.0.0      evaluate_0.14     highr_0.9         httr_1.4.2       
+## [13] blogdown_1.3      pillar_1.6.1      rlang_0.4.11      readxl_1.3.1     
+## [17] rstudioapi_0.13   jquerylib_0.1.4   checkmate_2.0.0   rmarkdown_2.8    
+## [21] labeling_0.4.2    selectr_0.4-2     htmlwidgets_1.5.3 munsell_0.5.0    
+## [25] broom_0.7.6       compiler_4.1.0    modelr_0.1.8      xfun_0.23        
+## [29] pkgconfig_2.0.3   htmltools_0.5.1.1 tidyselect_1.1.1  bookdown_0.22    
+## [33] fansi_0.4.2       crayon_1.4.1      dbplyr_2.1.1      withr_2.4.2      
+## [37] grid_4.1.0        jsonlite_1.7.2    gtable_0.3.0      lifecycle_1.0.0  
+## [41] DBI_1.1.1         magrittr_2.0.1    scales_1.1.1      cli_2.5.0        
+## [45] stringi_1.6.2     farver_2.1.0      fs_1.5.0          xml2_1.3.2       
+## [49] bslib_0.2.5.1     ellipsis_0.3.2    generics_0.1.0    vctrs_0.3.8      
+## [53] tools_4.1.0       glue_1.4.2        hms_1.1.0         crosstalk_1.1.1  
+## [57] yaml_2.2.1        colorspace_2.0-1  gt_0.3.0          widgetframe_0.3.1
+## [61] knitr_1.33        haven_2.4.1       sass_0.4.0</code></pre>
+</div>
