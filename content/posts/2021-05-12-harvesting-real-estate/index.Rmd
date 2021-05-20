@@ -824,8 +824,8 @@ data %>%
     lat = ~latitude,
     lng = ~longitude,
     popup = ~pop,
-    clusterOptions = markerClusterOptions()) %>%
-  widgetframe::frameWidget(.,width = "100%")
+    clusterOptions = markerClusterOptions()) #%>%
+  #widgetframe::frameWidget(.,width = "100%")
 ```
 
 ## The Conclusion
