@@ -57,8 +57,15 @@ experience:
         Responsibilities included:
         
         * Energy Audits
+            - Commercial
+            - Domestic
         * System Sizing
-        * In-house Tool Development
+            - Commercial
+            - Domestic
+        * In-House Tool Development
+            - Solar System Sizer
+            - Energy Audits
+            - Monitoring Solar System Performance
 
 design:
   columns: '2'
