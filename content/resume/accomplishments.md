@@ -49,8 +49,8 @@ item:
   url: ""
 - certificate_url: https://coursera.org/share/42550d06c05745af27e83d099d5158b1
   date_end: ""
-  date_start: "2021-06-5"
-  description: Designed to introduce Julia as a programming language.
+  date_start: "2021-06-05"
+  description: Designed to introduce the Julia programming language.
   organization: Coursera
   organization_url: https://www.coursera.org
   title: Julia Scientific Programming
