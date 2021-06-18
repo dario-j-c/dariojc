@@ -823,8 +823,10 @@ data %>%
   addMarkers(
     lat = ~latitude,
     lng = ~longitude,
+    label = ~property_type,
     popup = ~pop,
-    clusterOptions = markerClusterOptions()) #%>%
+    clusterOptions = markerClusterOptions()
+    ) #%>%
   #widgetframe::frameWidget(.,width = "100%")
 ```
 
