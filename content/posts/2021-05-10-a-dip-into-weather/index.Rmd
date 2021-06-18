@@ -18,14 +18,14 @@ projects: []
 ---
 ## The Intro
 
-I hold a vested interest in Barbados weather. This isn't just based on the ash fall we had received recently, but more due to working in the solar industry as an energy analyst.
+I hold a vested interest in the weather in Barbados. This isn't just based on the ash fall we had received recently, but more due to working in the solar industry as an energy analyst.
 
 I recently noticed on our [meteorological services website](https://www.barbadosweather.org/) a new section labelled Grafana which I naturally clicked. It led to me a dashboard that honestly blew me away. If I'm being completely honest, it's not exactly what I expect from our government websites.
 
 After some digging I came to the following conclusions:
 
 - This is a project powered by the [3D-PAWS](https://www.icdp.ucar.edu/core-programs/3dpaws/) (3D-Printed Automatic Weather Station) initiative
-- Barbados has at least [one](http://3d-barbados.chordsrt.com/instruments/1) of the physical weather stations, but has integrated multiple preexisting stations pushing data to the dashboard
+- Barbados has at least [one](http://3d-barbados.chordsrt.com/instruments/1) of the physical weather stations, but has integrated multiple pre-existing stations pushing data to the dashboard
 - The most important thing in my opinion; you can freely download data from this dashboard
 
 There's definitely interesting things you can find out about this project, for example these stations apparently use a raspberry pi for the brains. The project also  3D prints all the housings, connectors, and wire harnesses for the weather station and seems to have plans on making the designs to do so open source. I'm not sure how far they've gotten with it, but that's pretty cool.
@@ -50,7 +50,7 @@ library(tidyverse)
 
 #### The Variables
 
-These are the variables which will select the folder and files I wish to look at. In this way it should be easy to see I can easily change the code to red multiple file types, or variable with little hassle.
+These are the variables which will select the folder and files I wish to look at. In this way it should be easy to see I can easily change the code to read multiple file types, or variable with little hassle.
 
 ```{r Set Variables}
   file_type <- "csv"
@@ -173,7 +173,7 @@ It wouldn't take much for me to create a template or a parametrised file to easi
 I also could easily feed this data into a solar model and use it to check for performance discrepancies due to weather.
 
 
-I personally used Excel for all of this work before, and to be frank I can do it easily in that tool (I'll never betray Excel 😀), but my experience with Excel and r are vastly different. I've only truly started using r recently while I've used Excel from university and straight through my entire career.
+I personally used Excel for all of this work before, and to be frank I can do it easily in that tool (I'll never betray Excel 😀), but my experience with Excel and r are vastly different. I've only truly started using r recently while I've used Excel since university and straight through my entire career.
 
 This should hopefully hint at how useful r can be in an energy analyst's pipeline.
 
