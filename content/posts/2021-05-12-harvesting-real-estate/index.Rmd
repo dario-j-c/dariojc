@@ -90,9 +90,9 @@ Web scraping with rvest involves:
 2.  choosing the html tags & elements of interest with `html_elements`
 
 -   Within the html code are elements, usually denoted with some start and end tags `<...>` ... `</...>`.
-    `html_elements` allows us to select certain tags to collect their contents (the element) using CSS selectors, or XPath expressions.
+`html_elements` allows us to select certain tags to collect their contents (the element) using CSS selectors, or XPath expressions.
 
-    For my purpose, I used [selector gadget](https://rvest.tidyverse.org/articles/selectorgadget.html) to find the CSS selector I was interested in.
+For my purpose, I used [selector gadget](https://rvest.tidyverse.org/articles/selectorgadget.html) to find the CSS selector I was interested in.
 
 3.  choosing additional information of the html tags / elements in the form of attributes with `html_attr`
 
@@ -181,7 +181,7 @@ sample(x = 1:nrow(temp_property_id),
   #obscure variable to use for identification
   mutate(property_id = "00000",
          location = paste( head(strsplit(location, '')[[1]], 14), collapse = "")
-         ) %>%
+  ) %>%
   as_tibble() %>%
   gt::gt() %>% 
   gt::tab_header(
@@ -218,7 +218,7 @@ sample(x = 1:nrow(temp_property_id),
   mutate(property_id = "00000",
          latitude = round(latitude, 2),
          longitude = round(longitude, 2)
-         ) %>%
+  ) %>%
   as_tibble() %>%
   gt::gt() %>% 
   gt::tab_header(
@@ -373,14 +373,14 @@ if (!any( str_detect(list.files(full.names = TRUE,
          size = 5,
          replace = FALSE) %>%
     raw_data[.,] %>%
-  # remove variables which may identify locations
-  select(!(description:link)) %>%
+    # remove variables which may identify locations
+    select(!(description:link)) %>%
     as_tibble() %>%
     gt::gt() %>% 
-  gt::tab_header(
-    title = "Sample Values",
-    subtitle = "Sample taken from scraped dataset"
-  )
+    gt::tab_header(
+      title = "Sample Values",
+      subtitle = "Sample taken from scraped dataset"
+    )
   
 }
 ```
@@ -729,7 +729,7 @@ data %>%
   filter(property_type == "Land") %>%
   ggplot(aes(x = parish, y = log(price_per_sqft))) +
   geom_boxplot(aes(fill = parish)) +
-labs(title = 'The Log Price ($/sq.ft.) for Land in Barbados',
+  labs(title = 'The Log Price ($/sq.ft.) for Land in Barbados',
        x = 'Parish',
        y = 'Log Price',
        caption = 'please remember these are log values and are more useful for comparing orders of magnitude') +
@@ -743,6 +743,16 @@ labs(title = 'The Log Price ($/sq.ft.) for Land in Barbados',
 The above plot shows us that for certain parishes (see St. Michael, St. Joseph and St. James) they are large outliers in the \$/sq.ft in terms of how expensive they are.
 St. Andrew and St. Lucy also seem to tend in the opposite direction and are cheaper than other parishes.
 Overall there's quite a bit of variance in the price of land in general.
+
+```{r}
+data %>%
+  ggplot(aes(x = price_per_sqft, fill = fct_lump_n(property_type, n = 2))) +
+  geom_histogram(alpha = 0.2,
+                 colour = "black",
+               position = "identity") +
+  scale_x_log10(labels = scales::dollar_format())
+
+```
 
 ```{r Summary Statistics for Land Barchart}
 
@@ -763,7 +773,7 @@ data %>%
                     ymax = `price sq.ft (mean)` + `price sq.ft (standard deviation)`),
                 width = 0.5,
                 alpha = 0.8) +
-labs(title = 'The Average Price ($/sq.ft.) for Land in Barbados',
+  labs(title = 'The Average Price ($/sq.ft.) for Land in Barbados',
        x = 'Parish',
        y = 'Average Price ($/sq.ft.)',
        caption = 'includes standard deviation for each point') +
@@ -813,11 +823,19 @@ data %>%
 Lastly we can generate a map showing the locations for each point which shows the location, price per sq.ft.
 and property type.
 
+
+```{r}
+
+
+```
+
+
+
 ```{r Summary Statistics for Property Map, warning = FALSE}
 data %>%
   filter( !is.na(price_per_sqft) ) %>%
   mutate(pop = paste0(property_type,": ","$",round(price_per_sqft,2))
-           ) %>%
+  ) %>%
   leaflet() %>%
   addTiles() %>%
   addMarkers(
@@ -826,8 +844,8 @@ data %>%
     label = ~property_type,
     popup = ~pop,
     clusterOptions = markerClusterOptions()
-    ) #%>%
-  #widgetframe::frameWidget(.,width = "100%")
+  ) #%>%
+#widgetframe::frameWidget(.,width = "100%")
 ```
 
 ## The Conclusion
