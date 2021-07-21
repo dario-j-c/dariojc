@@ -1,0 +1,203 @@
+---
+title:  Using SQL in R
+author: Dario J C
+date: '2021-07-21'
+slug: sql-example
+categories: ["SQL", "SPARQL"]
+tags: ["SQL", "wikidata", "SPARQL", "BigQuery"]
+subtitle: ''
+summary: ''
+authors: []
+lastmod: '2021-07-21T14:23:12-04:00'
+featured: no
+image:
+  caption: 'Image credit: [**Unsplash**](https://unsplash.com/photos/lRoX0shwjUQ)'
+  focal_point: ''
+  preview_only: no
+projects: []
+---
+
+## Introduction
+
+I've seen in multiple articles, job listings, etc. the need for SQL.
+SQL (Structured Query Language) is a language used for interfacing with a relational database management system (RDBMS).
+
+Essentially it makes it easier to interact with large datasets which are stored in a particular manner.
+
+
+SQL itself may have multiple 'dialects' which may serve a specific purpose by the entity implementing it.
+
+In my case, I'd like to use SQL from R.
+
+
+### Accessing BigQuery (SQL)
+
+I found the package **bigrquery** to be pretty intuitive in accessing the databases hosted by Google. here I'll access there 
+
+Continuing in the same trend of births, we'll be looking at Google's BigQuery.
+We can use SQL to download information from one of their public datasets, in this case natality.
+
+In this query example, I again use R to access the database, the SQL query will tell me the average weight for male and female babies for each year.
+
+```{r Load Libraries, message = FALSE, warning = FALSE}
+library(tidyverse)
+
+library(leaflet)
+```
+
+##### Choose your Project
+
+```{r Access Project, include = FALSE}
+
+billing <- "my-first-sandbox-project-djc" # replace this with your project ID 
+
+```
+
+```{r SQL from BigQuery}
+
+# billing <- choose your project ID
+
+```
+
+##### Write your SQL query
+
+```{r}
+
+# Create your SQL function
+sql <- "SELECT AVG(weight_pounds) AS avg_weight, STDDEV(weight_pounds) AS stdev_weight, 'male' AS gender, year FROM bigquery-public-data.samples.natality WHERE is_male = TRUE GROUP BY year UNION ALL SELECT AVG(weight_pounds) AS avg_weight, STDDEV(weight_pounds) AS stdev_weight, 'female' AS gender, year FROM bigquery-public-data.samples.natality WHERE is_male = FALSE GROUP BY year"
+
+```
+
+##### Query BigQuery
+
+```{r}
+
+# Query the project
+tb <- bigrquery::bq_project_query(billing, sql)
+
+```
+
+##### Download Results
+
+```{r}
+
+# Download the data
+birth_weights <- bigrquery::bq_table_download(tb)
+
+head(birth_weights) %>%
+  gt::gt()
+
+```
+
+##### Manipulate Results in R
+
+```{r}
+# Visualise the Data
+plotly::ggplotly(
+  birth_weights %>%
+    mutate(`upper bound` = avg_weight + stdev_weight,
+           `lower bound` = avg_weight - stdev_weight) %>%
+    rename(`avg. weight` = avg_weight) %>%
+    ggplot(aes(x = year,
+               y = `avg. weight`,
+               colour = gender)) +
+    geom_line() +
+    geom_errorbar(aes(ymin = `lower bound`,
+                      ymax = `upper bound`),
+                  alpha = 0.4) +
+    facet_wrap(~gender) +
+    scale_y_continuous(labels = scales::label_number(suffix = " lb"))
+)
+
+```
+
+
+### Accessing Wikidata (SPARQL)
+
+We can also access the [RDF](https://www.cambridgesemantics.com/blog/semantic-university/learn-sparql/sparql-vs-sql/) database offered by Wikipedia (via [Wikidata](https://www.wikidata.org/wiki/Wikidata:Main_Page)) with their language SPARQL.
+
+##### Query Wikidata
+
+```{r Query Wikidata}
+
+
+# Query Wikipedia for list of scientists
+wiki_q_raw <- WikidataQueryServiceR::query_wikidata('SELECT ?scientist ?scientistLabel ?birthdate ?countryLabel ?coord WHERE {
+  ?scientist ?x1 wd:Q901;
+  wdt:P569 ?birthdate;
+  wdt:P19 ?birthplace;
+             wdt:P27 ?country.
+ 
+  ?birthplace wdt:P625 ?coord
+  SERVICE wikibase:label { bd:serviceParam wikibase:language "en". }
+}
+ORDER BY DESC(?birthdate)')
+
+# Query Wikipedia for fictional scientists to remove
+wiki_fic_q_raw <- WikidataQueryServiceR::query_wikidata('SELECT ?scientist ?scientistLabel ?birthdate ?countryLabel ?narrative ?coord WHERE {
+  ?scientist ?x1 wd:Q901;
+  wdt:P569 ?birthdate;
+  wdt:P19 ?birthplace;
+             wdt:P1080 ?narrative;
+             wdt:P27 ?country.
+ 
+  ?birthplace wdt:P625 ?coord
+  SERVICE wikibase:label { bd:serviceParam wikibase:language "en". }
+}
+ORDER BY DESC(?birthdate)')
+
+head(wiki_q_raw) %>%
+  gt::gt()
+
+```
+
+##### Manipulate Results in R
+
+```{r}
+
+# Clean the query results
+wiki_clean <- wiki_q_raw %>%
+  mutate( coord = str_replace_all(string = coord,
+                                  pattern = "(Point|\\(|\\))",
+                                  replacement = ""),
+          birthdate = as.Date(birthdate)
+  ) %>%
+  separate( col = coord,
+            into = c("long", "lat"),
+            sep = " ",
+            remove = TRUE) %>%
+  mutate( long = parse_number(long),
+          lat = parse_number(lat)) %>%
+  rename(country = countryLabel,
+         link = scientist,
+         scientist = scientistLabel) %>%
+  filter(link != wiki_fic_q_raw$scientist &
+           str_count(scientist, pattern = " ") >= 1
+  ) %>%
+  select(scientist,
+         birthdate,
+         country,
+         long,
+         lat,
+         link)
+
+# Visualise the results in a map
+wiki_clean %>%
+  mutate(pop = paste0("Birthday: (",birthdate,")")) %>%
+  leaflet() %>%
+  addTiles() %>%
+  addMarkers(
+    lat = ~lat,
+    lng = ~long,
+    label = ~scientist,
+    popup = ~pop,
+    clusterOptions = markerClusterOptions())
+
+
+```
+
+In just a few lines we generate a map with `r format(dim(wiki_clean)[1], big.mark = "," )` observations which you can freely explore.
+
+I've deployed this same query above for a previous project with a dynamic map. See this link to the Shiny App [here](https://dario-j-c.shinyapps.io/scientists_location/).
+
+
