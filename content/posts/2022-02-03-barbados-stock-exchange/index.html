@@ -1,0 +1,1524 @@
+---
+title: Barbados Stock Exchange
+author: Dario J C
+date: '2022-02-03'
+slug: barbados-stock-exchange
+categories: ["R", "Barbados"]
+tags: ["Stocks", "Barbados"]
+subtitle: ''
+summary: ''
+authors: []
+lastmod: '2022-02-03T22:14:24-04:00'
+featured: no
+image:
+  caption: 'Image credit: [**Unsplash**](https://unsplash.com/photos/Wb63zqJ5gnE)'
+  focal_point: ''
+  preview_only: no
+projects: []
+---
+
+<script src="{{< blogdown/postref >}}index_files/header-attrs/header-attrs.js"></script>
+
+
+<div id="introduction" class="section level2">
+<h2>Introduction</h2>
+<p>I have a vested interest in finding interesting datasets related to Barbados as that’s where I’m from.</p>
+<p>One site which caught my interest is the <a href="https://bse.com.bb/">Barbados Stock Exchange</a>.</p>
+<p>Now I’m currently ignorant when it comes to all things stocks, but I do see they offer on their website the ability to download monthly reports, and I do understand ‘free to download’.</p>
+<div id="downloading-files" class="section level4">
+<h4>Downloading Files</h4>
+<p>The first thing we need to do is load the information into our tool of choice, yet they’re quite a few files we’d need to download and edit.</p>
+<p>Here we can take advantage of some automation to help us out, my tool of choice for this will be R.</p>
+<p>We’ll first load our libraries and start writing our code.</p>
+<pre class="r"><code>library(conflicted)
+library(tidyverse)
+conflict_prefer(&quot;filter&quot;, &quot;dplyr&quot;)
+
+library(clock)
+library(gt)</code></pre>
+</div>
+</div>
+<div id="prep-work" class="section level2">
+<h2>Prep Work</h2>
+<p>First we download and look at some of the files manually. We thus confirm that we can download the reports as csv files from the link,
+&gt; [Domain]/reports/monthly/download-csv?tradeDate=[Date]
+&gt;
+&gt;where [Date] is the the date of interest in the format of yyyy-mm-dd.</p>
+<p>We can generate a sequence of dates using <code>seq</code> and <code>clock</code> which we can paste unto our base link.</p>
+<p>This will give us a list of links for all the files we’re interested in.</p>
+<pre class="r"><code># Download the data from the base link
+base_link &lt;- &quot;https://bse.com.bb/reports/monthly/download-csv?tradeDate=&quot;
+
+# Specify dates of interest
+from &lt;- clock::year_month_day(1910, 1)
+to &lt;- clock::year_month_day(2022, 1)
+
+# Generate download links
+download_links &lt;- tibble::tibble(
+  link = paste0(base_link,
+                seq(from, to, by = 1),
+                &quot;-01&quot;)
+)</code></pre>
+<p>We can confirm that the links were created as expected by looking at a few with the following code.</p>
+<pre class="r"><code># Show some of our generated links
+download_links %&gt;%
+  head() %&gt;%
+  gt::gt(rowname_col = NULL) %&gt;%
+  gt::tab_header(
+    title = &quot;List of generated links&quot;
+  )</code></pre>
+<div id="ebactlfxnv" style="overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
+<style>html {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Helvetica Neue', 'Fira Sans', 'Droid Sans', Arial, sans-serif;
+}
+
+#ebactlfxnv .gt_table {
+  display: table;
+  border-collapse: collapse;
+  margin-left: auto;
+  margin-right: auto;
+  color: #333333;
+  font-size: 16px;
+  font-weight: normal;
+  font-style: normal;
+  background-color: #FFFFFF;
+  width: auto;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #A8A8A8;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #A8A8A8;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+}
+
+#ebactlfxnv .gt_heading {
+  background-color: #FFFFFF;
+  text-align: center;
+  border-bottom-color: #FFFFFF;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+}
+
+#ebactlfxnv .gt_title {
+  color: #333333;
+  font-size: 125%;
+  font-weight: initial;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  border-bottom-color: #FFFFFF;
+  border-bottom-width: 0;
+}
+
+#ebactlfxnv .gt_subtitle {
+  color: #333333;
+  font-size: 85%;
+  font-weight: initial;
+  padding-top: 0;
+  padding-bottom: 6px;
+  border-top-color: #FFFFFF;
+  border-top-width: 0;
+}
+
+#ebactlfxnv .gt_bottom_border {
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+}
+
+#ebactlfxnv .gt_col_headings {
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+}
+
+#ebactlfxnv .gt_col_heading {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: normal;
+  text-transform: inherit;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: bottom;
+  padding-top: 5px;
+  padding-bottom: 6px;
+  padding-left: 5px;
+  padding-right: 5px;
+  overflow-x: hidden;
+}
+
+#ebactlfxnv .gt_column_spanner_outer {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: normal;
+  text-transform: inherit;
+  padding-top: 0;
+  padding-bottom: 0;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+#ebactlfxnv .gt_column_spanner_outer:first-child {
+  padding-left: 0;
+}
+
+#ebactlfxnv .gt_column_spanner_outer:last-child {
+  padding-right: 0;
+}
+
+#ebactlfxnv .gt_column_spanner {
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  vertical-align: bottom;
+  padding-top: 5px;
+  padding-bottom: 5px;
+  overflow-x: hidden;
+  display: inline-block;
+  width: 100%;
+}
+
+#ebactlfxnv .gt_group_heading {
+  padding: 8px;
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  text-transform: inherit;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: middle;
+}
+
+#ebactlfxnv .gt_empty_group_heading {
+  padding: 0.5px;
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  vertical-align: middle;
+}
+
+#ebactlfxnv .gt_from_md > :first-child {
+  margin-top: 0;
+}
+
+#ebactlfxnv .gt_from_md > :last-child {
+  margin-bottom: 0;
+}
+
+#ebactlfxnv .gt_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  margin: 10px;
+  border-top-style: solid;
+  border-top-width: 1px;
+  border-top-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: middle;
+  overflow-x: hidden;
+}
+
+#ebactlfxnv .gt_stub {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  text-transform: inherit;
+  border-right-style: solid;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+  padding-left: 12px;
+}
+
+#ebactlfxnv .gt_summary_row {
+  color: #333333;
+  background-color: #FFFFFF;
+  text-transform: inherit;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#ebactlfxnv .gt_first_summary_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+}
+
+#ebactlfxnv .gt_grand_summary_row {
+  color: #333333;
+  background-color: #FFFFFF;
+  text-transform: inherit;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#ebactlfxnv .gt_first_grand_summary_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-top-style: double;
+  border-top-width: 6px;
+  border-top-color: #D3D3D3;
+}
+
+#ebactlfxnv .gt_striped {
+  background-color: rgba(128, 128, 128, 0.05);
+}
+
+#ebactlfxnv .gt_table_body {
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+}
+
+#ebactlfxnv .gt_footnotes {
+  color: #333333;
+  background-color: #FFFFFF;
+  border-bottom-style: none;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+}
+
+#ebactlfxnv .gt_footnote {
+  margin: 0px;
+  font-size: 90%;
+  padding: 4px;
+}
+
+#ebactlfxnv .gt_sourcenotes {
+  color: #333333;
+  background-color: #FFFFFF;
+  border-bottom-style: none;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+}
+
+#ebactlfxnv .gt_sourcenote {
+  font-size: 90%;
+  padding: 4px;
+}
+
+#ebactlfxnv .gt_left {
+  text-align: left;
+}
+
+#ebactlfxnv .gt_center {
+  text-align: center;
+}
+
+#ebactlfxnv .gt_right {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+#ebactlfxnv .gt_font_normal {
+  font-weight: normal;
+}
+
+#ebactlfxnv .gt_font_bold {
+  font-weight: bold;
+}
+
+#ebactlfxnv .gt_font_italic {
+  font-style: italic;
+}
+
+#ebactlfxnv .gt_super {
+  font-size: 65%;
+}
+
+#ebactlfxnv .gt_footnote_marks {
+  font-style: italic;
+  font-weight: normal;
+  font-size: 65%;
+}
+</style>
+<table class="gt_table">
+  <thead class="gt_header">
+    <tr>
+      <th colspan="1" class="gt_heading gt_title gt_font_normal gt_bottom_border" style>List of generated links</th>
+    </tr>
+    
+  </thead>
+  <thead class="gt_col_headings">
+    <tr>
+      <th class="gt_col_heading gt_columns_bottom_border gt_left" rowspan="1" colspan="1">link</th>
+    </tr>
+  </thead>
+  <tbody class="gt_table_body">
+    <tr><td class="gt_row gt_left">https://bse.com.bb/reports/monthly/download-csv?tradeDate=1910-01-01</td></tr>
+    <tr><td class="gt_row gt_left">https://bse.com.bb/reports/monthly/download-csv?tradeDate=1910-02-01</td></tr>
+    <tr><td class="gt_row gt_left">https://bse.com.bb/reports/monthly/download-csv?tradeDate=1910-03-01</td></tr>
+    <tr><td class="gt_row gt_left">https://bse.com.bb/reports/monthly/download-csv?tradeDate=1910-04-01</td></tr>
+    <tr><td class="gt_row gt_left">https://bse.com.bb/reports/monthly/download-csv?tradeDate=1910-05-01</td></tr>
+    <tr><td class="gt_row gt_left">https://bse.com.bb/reports/monthly/download-csv?tradeDate=1910-06-01</td></tr>
+  </tbody>
+  
+  
+</table>
+</div>
+</div>
+<div id="downloading-files-1" class="section level2">
+<h2>Downloading Files</h2>
+<p>In our prep work, we created 1345 links to now download our files. That’s a bit, but thankfully we’re not doing this by hand, instead we’ll also be leveraging R here as well.</p>
+<p>We’ll first create a folder called “Stock_Files” to store our downloaded files to, as I may rerun this script multiple times, I’ll only download the files if this folder doesn’t exist.</p>
+<p>We’re also not particularly interested in any one file, so we’ll just assign them temporary names.</p>
+<pre class="r"><code># Note how many files we&#39;re interested in
+val &lt;- nrow(download_links)
+
+# If I&#39;ve downloaded the files already, just use them, otherwise download them
+if( length( list.dirs(path = &quot;./Stock_Files&quot;) ) &gt;= 1 ) {
+  stock_dir &lt;- paste0(getwd(),&quot;/Stock_Files&quot;)
+  stock_files &lt;- list.files(path = stock_dir,
+                           pattern = &quot;csv$&quot;)
+  
+} else {
+  
+  # Create a directory
+  dir.create(&quot;./Stock_Files&quot;,
+             showWarnings = TRUE,
+             recursive = FALSE,
+             mode = &quot;0777&quot;)
+  
+  # Create multiple temporary file names
+  stock_files &lt;- tibble::tibble(
+    id = seq(1, val, 1),
+    file_path = seq(1, val, 1) %&gt;%
+      map(~ tempfile(
+        pattern = paste0(&quot;temp_stock_&quot;,.x),
+        tmpdir = stock_dir,
+        fileext = &quot;.csv&quot;))
+  )
+  
+  # Download the files using temporary directory and file names
+  for(i in seq_along(1:val)){
+    try(
+      download.file(download_links$link[i],
+                    stock_files$file_path[[i]],
+                    method = &quot;wininet&quot;),
+      silent = TRUE)
+  }
+  
+}</code></pre>
+<p>We’ve successfully downloaded our files, but when we open some of them, we notice they’re empty!</p>
+<p>It turns out only some of the files have information, those without information, are simply blank.</p>
+<p>Interestingly, if we examine some of the empty files, we notice they’re only 3 bytes. We can use this to our advantage by deleting any file which has a size of 3 bytes or less.</p>
+<pre class="r"><code># Record details on the files downloaded
+detail_files &lt;- fileSnapshot(stock_dir)
+
+
+# Some months and thus files did not have any information, we make a list of those files
+delete_files &lt;- detail_files$info %&gt;% 
+  select(size) %&gt;%
+  mutate(file = row.names(.),
+         file = paste0(stock_dir,&quot;/&quot;,file)) %&gt;%
+  filter(size &lt;= 3 &amp; str_detect(file, &quot;csv$&quot;))
+
+# Delete all the unwanted files
+invisible(
+  sapply(delete_files$file, unlink)
+)
+
+
+## Read in the remaining files
+
+# Note files which are kept
+kept_files &lt;- detail_files$info %&gt;%
+  select(size) %&gt;%
+  mutate(file = row.names(.),
+         file = paste0(stock_dir,&quot;/&quot;,file)) %&gt;%
+  filter(size &gt; 3 &amp; str_detect(file, &quot;csv$&quot;))</code></pre>
+<p>Now after this, we can at last read our kept files into memory.</p>
+<pre class="r"><code># read in all the CSV files
+data_raw &lt;- map_dfr(.x = kept_files$file,
+                    .f = read_csv,
+                    skip = 1,
+                    col_types = cols(
+                      `Trade Date` = col_character(),
+                      Security = col_character(),
+                      Volume = col_character(),
+                      High = col_character(),
+                      Low = col_character(),
+                      `Last Close` = col_character(),
+                      `Current Close` = col_character(),
+                      `Price Change` = col_character(),
+                      `Bid Price` = col_character(),
+                      `Ask Price` = col_character()
+                    ))</code></pre>
+<p>Of the 1345 files downloaded, we deleted 0 and kept only 73.</p>
+<p>Why so little? Well it so happens that the Stock Exchange only start recording information from around 2015, and we started our count from 1910, quite inefficient of us.</p>
+<p>Well the reason we did this (notice I’m still using we), was to show how we can find ways to remove unneeded files without much issue. (That, and I was too lazy to manually check when useful information was recorded.)</p>
+<p>Table showing Raw Data</p>
+<pre class="r"><code># Show the first few values of the files we downloaded
+data_raw %&gt;%
+  head() %&gt;%
+  gt::gt()</code></pre>
+<div id="dwbxrmnmpk" style="overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
+<style>html {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Helvetica Neue', 'Fira Sans', 'Droid Sans', Arial, sans-serif;
+}
+
+#dwbxrmnmpk .gt_table {
+  display: table;
+  border-collapse: collapse;
+  margin-left: auto;
+  margin-right: auto;
+  color: #333333;
+  font-size: 16px;
+  font-weight: normal;
+  font-style: normal;
+  background-color: #FFFFFF;
+  width: auto;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #A8A8A8;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #A8A8A8;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+}
+
+#dwbxrmnmpk .gt_heading {
+  background-color: #FFFFFF;
+  text-align: center;
+  border-bottom-color: #FFFFFF;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+}
+
+#dwbxrmnmpk .gt_title {
+  color: #333333;
+  font-size: 125%;
+  font-weight: initial;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  border-bottom-color: #FFFFFF;
+  border-bottom-width: 0;
+}
+
+#dwbxrmnmpk .gt_subtitle {
+  color: #333333;
+  font-size: 85%;
+  font-weight: initial;
+  padding-top: 0;
+  padding-bottom: 6px;
+  border-top-color: #FFFFFF;
+  border-top-width: 0;
+}
+
+#dwbxrmnmpk .gt_bottom_border {
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+}
+
+#dwbxrmnmpk .gt_col_headings {
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+}
+
+#dwbxrmnmpk .gt_col_heading {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: normal;
+  text-transform: inherit;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: bottom;
+  padding-top: 5px;
+  padding-bottom: 6px;
+  padding-left: 5px;
+  padding-right: 5px;
+  overflow-x: hidden;
+}
+
+#dwbxrmnmpk .gt_column_spanner_outer {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: normal;
+  text-transform: inherit;
+  padding-top: 0;
+  padding-bottom: 0;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+#dwbxrmnmpk .gt_column_spanner_outer:first-child {
+  padding-left: 0;
+}
+
+#dwbxrmnmpk .gt_column_spanner_outer:last-child {
+  padding-right: 0;
+}
+
+#dwbxrmnmpk .gt_column_spanner {
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  vertical-align: bottom;
+  padding-top: 5px;
+  padding-bottom: 5px;
+  overflow-x: hidden;
+  display: inline-block;
+  width: 100%;
+}
+
+#dwbxrmnmpk .gt_group_heading {
+  padding: 8px;
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  text-transform: inherit;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: middle;
+}
+
+#dwbxrmnmpk .gt_empty_group_heading {
+  padding: 0.5px;
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  vertical-align: middle;
+}
+
+#dwbxrmnmpk .gt_from_md > :first-child {
+  margin-top: 0;
+}
+
+#dwbxrmnmpk .gt_from_md > :last-child {
+  margin-bottom: 0;
+}
+
+#dwbxrmnmpk .gt_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  margin: 10px;
+  border-top-style: solid;
+  border-top-width: 1px;
+  border-top-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: middle;
+  overflow-x: hidden;
+}
+
+#dwbxrmnmpk .gt_stub {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  text-transform: inherit;
+  border-right-style: solid;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+  padding-left: 12px;
+}
+
+#dwbxrmnmpk .gt_summary_row {
+  color: #333333;
+  background-color: #FFFFFF;
+  text-transform: inherit;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#dwbxrmnmpk .gt_first_summary_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+}
+
+#dwbxrmnmpk .gt_grand_summary_row {
+  color: #333333;
+  background-color: #FFFFFF;
+  text-transform: inherit;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#dwbxrmnmpk .gt_first_grand_summary_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-top-style: double;
+  border-top-width: 6px;
+  border-top-color: #D3D3D3;
+}
+
+#dwbxrmnmpk .gt_striped {
+  background-color: rgba(128, 128, 128, 0.05);
+}
+
+#dwbxrmnmpk .gt_table_body {
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+}
+
+#dwbxrmnmpk .gt_footnotes {
+  color: #333333;
+  background-color: #FFFFFF;
+  border-bottom-style: none;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+}
+
+#dwbxrmnmpk .gt_footnote {
+  margin: 0px;
+  font-size: 90%;
+  padding: 4px;
+}
+
+#dwbxrmnmpk .gt_sourcenotes {
+  color: #333333;
+  background-color: #FFFFFF;
+  border-bottom-style: none;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+}
+
+#dwbxrmnmpk .gt_sourcenote {
+  font-size: 90%;
+  padding: 4px;
+}
+
+#dwbxrmnmpk .gt_left {
+  text-align: left;
+}
+
+#dwbxrmnmpk .gt_center {
+  text-align: center;
+}
+
+#dwbxrmnmpk .gt_right {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+#dwbxrmnmpk .gt_font_normal {
+  font-weight: normal;
+}
+
+#dwbxrmnmpk .gt_font_bold {
+  font-weight: bold;
+}
+
+#dwbxrmnmpk .gt_font_italic {
+  font-style: italic;
+}
+
+#dwbxrmnmpk .gt_super {
+  font-size: 65%;
+}
+
+#dwbxrmnmpk .gt_footnote_marks {
+  font-style: italic;
+  font-weight: normal;
+  font-size: 65%;
+}
+</style>
+<table class="gt_table">
+  
+  <thead class="gt_col_headings">
+    <tr>
+      <th class="gt_col_heading gt_columns_bottom_border gt_left" rowspan="1" colspan="1">Trade Date</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_left" rowspan="1" colspan="1">Security</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_left" rowspan="1" colspan="1">Volume</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_left" rowspan="1" colspan="1">High</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_left" rowspan="1" colspan="1">Low</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_left" rowspan="1" colspan="1">Last Close</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_left" rowspan="1" colspan="1">Current Close</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_left" rowspan="1" colspan="1">Price Change</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_left" rowspan="1" colspan="1">Bid Price</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_left" rowspan="1" colspan="1">Ask Price</th>
+    </tr>
+  </thead>
+  <tbody class="gt_table_body">
+    <tr><td class="gt_row gt_left">2015-01-01</td>
+<td class="gt_row gt_left">ABV</td>
+<td class="gt_row gt_left">1,500</td>
+<td class="gt_row gt_left">0.32</td>
+<td class="gt_row gt_left">0.32</td>
+<td class="gt_row gt_left">0.00</td>
+<td class="gt_row gt_left">0.32</td>
+<td class="gt_row gt_left">0.00</td>
+<td class="gt_row gt_left">0.25</td>
+<td class="gt_row gt_left">0.30</td></tr>
+    <tr><td class="gt_row gt_left">2015-01-01</td>
+<td class="gt_row gt_left">BHL</td>
+<td class="gt_row gt_left">2,144</td>
+<td class="gt_row gt_left">2.90</td>
+<td class="gt_row gt_left">2.90</td>
+<td class="gt_row gt_left">0.00</td>
+<td class="gt_row gt_left">2.90</td>
+<td class="gt_row gt_left">0.00</td>
+<td class="gt_row gt_left">2.50</td>
+<td class="gt_row gt_left">2.88</td></tr>
+    <tr><td class="gt_row gt_left">2015-01-01</td>
+<td class="gt_row gt_left">BCO</td>
+<td class="gt_row gt_left">13,899</td>
+<td class="gt_row gt_left">1.90</td>
+<td class="gt_row gt_left">1.65</td>
+<td class="gt_row gt_left">0.00</td>
+<td class="gt_row gt_left">1.82</td>
+<td class="gt_row gt_left">0.00</td>
+<td class="gt_row gt_left">1.90</td>
+<td class="gt_row gt_left">0.00</td></tr>
+    <tr><td class="gt_row gt_left">2015-01-01</td>
+<td class="gt_row gt_left">CWBL</td>
+<td class="gt_row gt_left">11,900</td>
+<td class="gt_row gt_left">3.00</td>
+<td class="gt_row gt_left">3.00</td>
+<td class="gt_row gt_left">0.00</td>
+<td class="gt_row gt_left">3.00</td>
+<td class="gt_row gt_left">0.00</td>
+<td class="gt_row gt_left">0.00</td>
+<td class="gt_row gt_left">2.48</td></tr>
+    <tr><td class="gt_row gt_left">2015-01-01</td>
+<td class="gt_row gt_left">CSP</td>
+<td class="gt_row gt_left">1,823</td>
+<td class="gt_row gt_left">3.00</td>
+<td class="gt_row gt_left">3.00</td>
+<td class="gt_row gt_left">0.00</td>
+<td class="gt_row gt_left">3.00</td>
+<td class="gt_row gt_left">0.00</td>
+<td class="gt_row gt_left">2.51</td>
+<td class="gt_row gt_left">3.00</td></tr>
+    <tr><td class="gt_row gt_left">2015-01-01</td>
+<td class="gt_row gt_left">CPFD</td>
+<td class="gt_row gt_left">37,143</td>
+<td class="gt_row gt_left">0.22</td>
+<td class="gt_row gt_left">0.22</td>
+<td class="gt_row gt_left">0.00</td>
+<td class="gt_row gt_left">0.22</td>
+<td class="gt_row gt_left">0.00</td>
+<td class="gt_row gt_left">0.17</td>
+<td class="gt_row gt_left">0.00</td></tr>
+  </tbody>
+  
+  
+</table>
+</div>
+</div>
+<div id="cleaning-data" class="section level1">
+<h1>Cleaning Data</h1>
+<p>Well we have our data, but upon closer examination, we see it’s not in a format that’s particularly useful to us. At least not yet.</p>
+<p>To hopefully make the cleaning process easier to follow, we’ll be using multiple temporary objects.</p>
+<p>The first thing we will do is create two unique identifiers, they will track:</p>
+<ol style="list-style-type: decimal">
+<li>the month and year for that particular row: <code>month-year</code></li>
+<li>the particular row: <code>row_number</code></li>
+</ol>
+<p>These values will prove useful later.</p>
+<pre class="r"><code># Manipulate our raw data to include a unique identifier for month-year
+d_raw &lt;- data_raw %&gt;%
+  mutate(month_year = clock::date_format(
+    clock::date_parse(`Trade Date`),
+                      format = &quot;%Y-%m&quot;),
+    id = row_number())</code></pre>
+<p>We also want to keep track of which <code>row_number</code> is the first value in a new <code>month-year</code> as well.</p>
+<pre class="r"><code># Create a table which identifies the first index in the raw data for each month and year
+id_val &lt;- d_raw[
+  match(
+    unique(d_raw$month_year),
+    d_raw$month_year),] %&gt;%
+  select(id)</code></pre>
+<p>Now inside our <code>Trade Date</code> column, we sometimes get useful information which isn’t the date, but rather a title. We will now use our previous values to find their locations.</p>
+<pre class="r"><code># Get the index numbers for each title
+temp_row &lt;- c(
+  which(
+    !str_detect(d_raw$`Trade Date`,
+                &quot;([:digit:]|Trade Date)&quot;) | d_raw$id %in% id_val$id),
+  length(d_raw$`Trade Date`)
+  )</code></pre>
+<p>We can now organize these temporary values into a usable table with which to use in our ‘cleaning’.</p>
+<pre class="r"><code># Arrange index numbers into a usable format
+temp_col &lt;- tibble::tibble(
+  begin = temp_row[1:(length(temp_row)-1)],
+  end = temp_row[2:length(temp_row)],
+  Title = data_raw[begin,1][[1]]) %&gt;%
+  mutate(Title = ifelse(str_detect(Title,
+                                   &quot;[:digit:]&quot;),
+                        &quot;BSE MAIN&quot;,
+                        Title))</code></pre>
+<p>Now using this table, we can at last carry out the last step of cleaning.</p>
+<pre class="r"><code># Clean our data and assign to a new data frame
+data_clean &lt;- left_join(d_raw,
+                        temp_col,
+                        by = c(&quot;id&quot;=&quot;begin&quot;)) %&gt;%
+  # Fix NA values with a user made function, &#39;cleanNA&#39;.
+  # You can find it at http://www.cookbook-r.com/
+  mutate(Title = cleanNA(Title),
+         `Trade Date` = clock::date_parse(`Trade Date`),
+         Volume = parse_number(Volume)) %&gt;%
+  # Change valid columns from characters to numbers
+  mutate(across(High:`Ask Price`,
+                parse_number)) %&gt;%
+  # Remove unneeded columns
+  select(-month_year:-end) %&gt;%
+  # Remove rows with NAs
+  filter(complete.cases(.)) %&gt;%
+  # Change valid columns from characters to factors
+  mutate(across(c(Security, Title),
+                as_factor))
+
+min_rows &lt;- min(data_clean$`Trade Date`)
+max_rows &lt;- max(data_clean$`Trade Date`)</code></pre>
+<p>We’ve at last cleaned our data, which:</p>
+<ol style="list-style-type: decimal">
+<li>Reduced our raw data table from 2413 rows to 2225</li>
+<li>Assigned the appropriate format appropriate for each column</li>
+<li>Moved all titles into a usable column</li>
+<li>Removed blank spaces and the like where applicable</li>
+</ol>
+<p>Table showing Clean Data</p>
+<pre class="r"><code>data_clean %&gt;%
+  head() %&gt;%
+  gt::gt()</code></pre>
+<div id="mlovpeuald" style="overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
+<style>html {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Helvetica Neue', 'Fira Sans', 'Droid Sans', Arial, sans-serif;
+}
+
+#mlovpeuald .gt_table {
+  display: table;
+  border-collapse: collapse;
+  margin-left: auto;
+  margin-right: auto;
+  color: #333333;
+  font-size: 16px;
+  font-weight: normal;
+  font-style: normal;
+  background-color: #FFFFFF;
+  width: auto;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #A8A8A8;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #A8A8A8;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+}
+
+#mlovpeuald .gt_heading {
+  background-color: #FFFFFF;
+  text-align: center;
+  border-bottom-color: #FFFFFF;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+}
+
+#mlovpeuald .gt_title {
+  color: #333333;
+  font-size: 125%;
+  font-weight: initial;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  border-bottom-color: #FFFFFF;
+  border-bottom-width: 0;
+}
+
+#mlovpeuald .gt_subtitle {
+  color: #333333;
+  font-size: 85%;
+  font-weight: initial;
+  padding-top: 0;
+  padding-bottom: 6px;
+  border-top-color: #FFFFFF;
+  border-top-width: 0;
+}
+
+#mlovpeuald .gt_bottom_border {
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+}
+
+#mlovpeuald .gt_col_headings {
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+}
+
+#mlovpeuald .gt_col_heading {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: normal;
+  text-transform: inherit;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: bottom;
+  padding-top: 5px;
+  padding-bottom: 6px;
+  padding-left: 5px;
+  padding-right: 5px;
+  overflow-x: hidden;
+}
+
+#mlovpeuald .gt_column_spanner_outer {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: normal;
+  text-transform: inherit;
+  padding-top: 0;
+  padding-bottom: 0;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+#mlovpeuald .gt_column_spanner_outer:first-child {
+  padding-left: 0;
+}
+
+#mlovpeuald .gt_column_spanner_outer:last-child {
+  padding-right: 0;
+}
+
+#mlovpeuald .gt_column_spanner {
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  vertical-align: bottom;
+  padding-top: 5px;
+  padding-bottom: 5px;
+  overflow-x: hidden;
+  display: inline-block;
+  width: 100%;
+}
+
+#mlovpeuald .gt_group_heading {
+  padding: 8px;
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  text-transform: inherit;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: middle;
+}
+
+#mlovpeuald .gt_empty_group_heading {
+  padding: 0.5px;
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  vertical-align: middle;
+}
+
+#mlovpeuald .gt_from_md > :first-child {
+  margin-top: 0;
+}
+
+#mlovpeuald .gt_from_md > :last-child {
+  margin-bottom: 0;
+}
+
+#mlovpeuald .gt_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  margin: 10px;
+  border-top-style: solid;
+  border-top-width: 1px;
+  border-top-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: middle;
+  overflow-x: hidden;
+}
+
+#mlovpeuald .gt_stub {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  text-transform: inherit;
+  border-right-style: solid;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+  padding-left: 12px;
+}
+
+#mlovpeuald .gt_summary_row {
+  color: #333333;
+  background-color: #FFFFFF;
+  text-transform: inherit;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#mlovpeuald .gt_first_summary_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+}
+
+#mlovpeuald .gt_grand_summary_row {
+  color: #333333;
+  background-color: #FFFFFF;
+  text-transform: inherit;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#mlovpeuald .gt_first_grand_summary_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-top-style: double;
+  border-top-width: 6px;
+  border-top-color: #D3D3D3;
+}
+
+#mlovpeuald .gt_striped {
+  background-color: rgba(128, 128, 128, 0.05);
+}
+
+#mlovpeuald .gt_table_body {
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+}
+
+#mlovpeuald .gt_footnotes {
+  color: #333333;
+  background-color: #FFFFFF;
+  border-bottom-style: none;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+}
+
+#mlovpeuald .gt_footnote {
+  margin: 0px;
+  font-size: 90%;
+  padding: 4px;
+}
+
+#mlovpeuald .gt_sourcenotes {
+  color: #333333;
+  background-color: #FFFFFF;
+  border-bottom-style: none;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+}
+
+#mlovpeuald .gt_sourcenote {
+  font-size: 90%;
+  padding: 4px;
+}
+
+#mlovpeuald .gt_left {
+  text-align: left;
+}
+
+#mlovpeuald .gt_center {
+  text-align: center;
+}
+
+#mlovpeuald .gt_right {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+#mlovpeuald .gt_font_normal {
+  font-weight: normal;
+}
+
+#mlovpeuald .gt_font_bold {
+  font-weight: bold;
+}
+
+#mlovpeuald .gt_font_italic {
+  font-style: italic;
+}
+
+#mlovpeuald .gt_super {
+  font-size: 65%;
+}
+
+#mlovpeuald .gt_footnote_marks {
+  font-style: italic;
+  font-weight: normal;
+  font-size: 65%;
+}
+</style>
+<table class="gt_table">
+  
+  <thead class="gt_col_headings">
+    <tr>
+      <th class="gt_col_heading gt_columns_bottom_border gt_left" rowspan="1" colspan="1">Trade Date</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_center" rowspan="1" colspan="1">Security</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1">Volume</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1">High</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1">Low</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1">Last Close</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1">Current Close</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1">Price Change</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1">Bid Price</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1">Ask Price</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_center" rowspan="1" colspan="1">Title</th>
+    </tr>
+  </thead>
+  <tbody class="gt_table_body">
+    <tr><td class="gt_row gt_left">2015-01-01</td>
+<td class="gt_row gt_center">ABV</td>
+<td class="gt_row gt_right">1500</td>
+<td class="gt_row gt_right">0.32</td>
+<td class="gt_row gt_right">0.32</td>
+<td class="gt_row gt_right">0</td>
+<td class="gt_row gt_right">0.32</td>
+<td class="gt_row gt_right">0</td>
+<td class="gt_row gt_right">0.25</td>
+<td class="gt_row gt_right">0.30</td>
+<td class="gt_row gt_center">BSE MAIN</td></tr>
+    <tr><td class="gt_row gt_left">2015-01-01</td>
+<td class="gt_row gt_center">BHL</td>
+<td class="gt_row gt_right">2144</td>
+<td class="gt_row gt_right">2.90</td>
+<td class="gt_row gt_right">2.90</td>
+<td class="gt_row gt_right">0</td>
+<td class="gt_row gt_right">2.90</td>
+<td class="gt_row gt_right">0</td>
+<td class="gt_row gt_right">2.50</td>
+<td class="gt_row gt_right">2.88</td>
+<td class="gt_row gt_center">BSE MAIN</td></tr>
+    <tr><td class="gt_row gt_left">2015-01-01</td>
+<td class="gt_row gt_center">BCO</td>
+<td class="gt_row gt_right">13899</td>
+<td class="gt_row gt_right">1.90</td>
+<td class="gt_row gt_right">1.65</td>
+<td class="gt_row gt_right">0</td>
+<td class="gt_row gt_right">1.82</td>
+<td class="gt_row gt_right">0</td>
+<td class="gt_row gt_right">1.90</td>
+<td class="gt_row gt_right">0.00</td>
+<td class="gt_row gt_center">BSE MAIN</td></tr>
+    <tr><td class="gt_row gt_left">2015-01-01</td>
+<td class="gt_row gt_center">CWBL</td>
+<td class="gt_row gt_right">11900</td>
+<td class="gt_row gt_right">3.00</td>
+<td class="gt_row gt_right">3.00</td>
+<td class="gt_row gt_right">0</td>
+<td class="gt_row gt_right">3.00</td>
+<td class="gt_row gt_right">0</td>
+<td class="gt_row gt_right">0.00</td>
+<td class="gt_row gt_right">2.48</td>
+<td class="gt_row gt_center">BSE MAIN</td></tr>
+    <tr><td class="gt_row gt_left">2015-01-01</td>
+<td class="gt_row gt_center">CSP</td>
+<td class="gt_row gt_right">1823</td>
+<td class="gt_row gt_right">3.00</td>
+<td class="gt_row gt_right">3.00</td>
+<td class="gt_row gt_right">0</td>
+<td class="gt_row gt_right">3.00</td>
+<td class="gt_row gt_right">0</td>
+<td class="gt_row gt_right">2.51</td>
+<td class="gt_row gt_right">3.00</td>
+<td class="gt_row gt_center">BSE MAIN</td></tr>
+    <tr><td class="gt_row gt_left">2015-01-01</td>
+<td class="gt_row gt_center">CPFD</td>
+<td class="gt_row gt_right">37143</td>
+<td class="gt_row gt_right">0.22</td>
+<td class="gt_row gt_right">0.22</td>
+<td class="gt_row gt_right">0</td>
+<td class="gt_row gt_right">0.22</td>
+<td class="gt_row gt_right">0</td>
+<td class="gt_row gt_right">0.17</td>
+<td class="gt_row gt_right">0.00</td>
+<td class="gt_row gt_center">BSE MAIN</td></tr>
+  </tbody>
+  
+  
+</table>
+</div>
+<p>We’ll remove some unneeded values before moving on.</p>
+<pre class="r"><code># Remove unneeded variables
+rm(data_raw,
+   delete_files,
+   detail_files,
+   download_links,
+   id_val,
+   kept_files,
+   temp_col,
+   base_link,
+   from,
+   to,
+   stock_dir,
+   stock_files,
+   val,
+   temp_row)</code></pre>
+</div>
+<div id="visualizing-data" class="section level1">
+<h1>Visualizing Data</h1>
+<p>Well we now have clean data, but what do we do with it?</p>
+<p>As I mentioned before, I’m completely ignorant about stocks, so my guess is definitely not as good as yours.</p>
+<p>Still we’ll move on undaunted, and plot something for now, we may explore this data properly at a later date.</p>
+<pre class="r"><code>data_clean %&gt;%
+  filter(Title == &quot;BSE MAIN&quot;) %&gt;%
+  ggplot(aes(x = `Trade Date`,
+             y = `Current Close`,
+             colour = Security)) +
+  geom_line(show.legend = FALSE) +
+  facet_wrap(vars(Security)) +
+  labs(title = &quot;Plot of Current Close for BSE MAIN&quot;,
+       caption = &quot;Data source: Barbados Stock Exchange (2022)&quot;) +
+  see::theme_blackboard() +
+  viridis::scale_fill_viridis()</code></pre>
+<p><img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-11-1.png" width="960" /></p>
+<pre class="r"><code>data_clean %&gt;%
+  filter(Title == &quot;Fixed Income&quot;) %&gt;%
+  ggplot(aes(x = `Trade Date`,
+             y = `Current Close`,
+             colour = Security)) +
+  geom_line(show.legend = FALSE) +
+  facet_wrap(vars(Security)) +
+  labs(title = &quot;Plot of Current Close for BSE FIX&quot;,
+       caption = &quot;Data source: Barbados Stock Exchange (2022)&quot;) +
+  see::theme_blackboard() +
+  theme(axis.text.x = element_text(angle = 90)) +
+  viridis::scale_fill_viridis()</code></pre>
+<p><img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-11-2.png" width="960" /></p>
+<pre class="r"><code>data_clean %&gt;%
+  filter(Title == &quot;ISM&quot;) %&gt;%
+  ggplot(aes(x = `Trade Date`,
+             y = `Current Close`,
+             colour = Security)) +
+  geom_line(show.legend = FALSE) +
+  facet_wrap(vars(Security)) +
+  labs(title = &quot;Plot of Current Close for BSE ISM&quot;,
+       caption = &quot;Data source: Barbados Stock Exchange (2022)&quot;) +
+  see::theme_blackboard() +
+  viridis::scale_fill_viridis()</code></pre>
+<p><img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-11-3.png" width="960" /></p>
+<pre class="r"><code>data_clean %&gt;%
+  filter(Title == &quot;BSE ISM-BONDS&quot;) %&gt;%
+  ggplot(aes(x = `Trade Date`,
+             y = `Current Close`,
+             colour = Security)) +
+  geom_line(show.legend = FALSE) +
+  facet_wrap(vars(Security)) +
+  labs(title = &quot;Plot of Current Close for BSE ISM-BONDS&quot;,
+       caption = &quot;Data source: Barbados Stock Exchange (2022)&quot;) +
+  see::theme_blackboard() +
+  viridis::scale_fill_viridis()</code></pre>
+<p><img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-11-4.png" width="960" /></p>
+<p>This was a pretty interesting task.</p>
+<p>If I revisit this, I’d like to confirm if BSE has an API of some form to use, and maybe I should learn a bit about stocks so I can do something interesting with the downloaded information.</p>
+</div>
